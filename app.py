@@ -180,7 +180,9 @@ with st.sidebar:
 # Πύλες προστασίας
 # ---------------------------
 if not st.session_state.auth_ok:
-    st.warning("🔐 Εισάγετε τον κωδικό για πρόσβαση)
+   password = st.text_input("Κωδικός πρόσβασης", type="password")
+if password != "katanomi2025":
+    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση")
     st.stop()
 
 if not st.session_state.accepted_terms:
