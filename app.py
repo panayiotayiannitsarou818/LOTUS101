@@ -129,7 +129,7 @@ REQUIRED = [
 with st.sidebar:
     st.header("🔐 Πρόσβαση & Ρυθμίσεις")
 
-    pwd = st.text_input("Κωδικός πρόσβασης", type="password", help="Κωδικός: katanomi2025")
+    pwd = st.text_input("Κωδικός πρόσβασης", type="password")
     if "auth_ok" not in st.session_state:
         st.session_state.auth_ok = False
     if pwd:
