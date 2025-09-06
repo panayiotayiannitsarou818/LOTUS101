@@ -175,10 +175,10 @@ else:
 st.divider()
 
 # ---------------------------
-# 🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)
+# 🚀 Εκτέλεση Κατανομής
 # ---------------------------
-st.header("🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)")
-st.write("Ανέβασε μόνο το **αρχικό Excel**. Ο wrapper τρέχει 1→6 και μετά 7 και δίνει **τελικό αποτέλεσμα**. Το αρχείο αποθηκεύεται και χρησιμοποιείται αυτόματα από τα Στατιστικά.")
+st.header("🚀 Εκτέλεση Κατανομής")
+
 
 up_all = st.file_uploader("Ανέβασε αρχικό Excel (για 1→7)", type=["xlsx"], key="uploader_all")
 colA, colB, colC = st.columns([1,1,1])
@@ -261,7 +261,7 @@ if st.button("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ", type="primary", use_con
 st.divider()
 
 # ---------------------------
-# 📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)
+# 📊 Στατιστικά τμημάτων
 # ---------------------------
 # ΑΥΣΤΗΡΟ: ΜΟΝΟ από session_state (καμία σάρωση δίσκου)
 def _find_latest_final_path() -> Path | None:
@@ -270,11 +270,9 @@ def _find_latest_final_path() -> Path | None:
         return Path(p)
     return None
 
-st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
+st.header("📊 Στατιστικά τμημάτων")
 st.markdown("\n".join([
-    "📊 **Στατιστικά (AUTO):** διαβάζει αυτόματα το πιο πρόσφατο `STEP7_FINAL_SCENARIO_*.xlsx` (δεν ζητά upload).",
-    "**Απαιτεί:** `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` → αυτή χρησιμοποιείται ως `ΤΜΗΜΑ`.",
-]))
+  
 
 final_path = _find_latest_final_path()
 if not final_path:
