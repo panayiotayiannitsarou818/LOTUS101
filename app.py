@@ -126,7 +126,8 @@ with st.sidebar:
 
     with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=True):
         st.markdown(_terms_md())
-    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))    st.divider()
+    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))
+    st.divider()
     st.subheader("🖼️ Λογότυπο")
     # Auto-load persisted
     if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
