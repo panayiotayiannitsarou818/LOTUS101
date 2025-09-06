@@ -39,12 +39,14 @@ def _check_required_files(paths):
     return missing
 
 def _restart_app():
+    # Καθάρισε session_state κλειδιά
     for k in list(st.session_state.keys()):
         if k.startswith("uploader_") or k in ("auth_ok","accepted_terms","app_enabled","last_final_path"):
             try:
                 del st.session_state[k]
             except Exception:
                 pass
+    # Καθάρισε caches
     try:
         st.cache_data.clear()
     except Exception:
@@ -53,7 +55,19 @@ def _restart_app():
         st.cache_resource.clear()
     except Exception:
         pass
+    # ΔΙΑΓΡΑΦΗ παραγόμενων αρχείων για πλήρη καθαρισμό
+    try:
+        ROOT = Path(__file__).parent
+        for pat in ("STEP7_FINAL_SCENARIO*.xlsx", "STEP1_6_PER_SCENARIO*.xlsx", "INPUT_STEP1*.xlsx"):
+            for f in ROOT.glob(pat):
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+    except Exception:
+        pass
     st.rerun()
+
 
 def _inject_logo(logo_bytes: bytes, width_px: int = 140, mime: str = "image/png"):
     b64 = base64.b64encode(logo_bytes).decode("ascii")
@@ -483,6 +497,15 @@ def prepare_conflict_students(df: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["ΤΜΗΜΑ","ΟΝΟΜΑ"])
 
 # ===== 📊 Στατιστικά — UI tabs =====
+
+# --- Override: use ONLY session_state for final path (no disk fallback) ---
+def _find_latest_final_path() -> Path | None:
+    p = st.session_state.get("last_final_path")
+    # ΑΥΣΤΗΡΟ: δεν γίνεται fallback σε αρχεία δίσκου.
+    if p and Path(p).exists():
+        return Path(p)
+    return None
+
 st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
 
 def _find_latest_final_path() -> Path | None:
