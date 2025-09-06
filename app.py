@@ -12,9 +12,22 @@ import pandas as pd
 # ---------------------------
 st.set_page_config(page_title="Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού", page_icon="🧩", layout="wide")
 st.title("Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού")
-st.caption("Λεπτός wrapper εκτέλεσης — Καμία αλλαγή στη λογική των modules.")
-st.info("Έκδοση: clean-stable build (AUTO Στατιστικά, μία επανεκκίνηση, μόνιμο λογότυπο)")
 
+st.markdown("""
+<div style="display:flex; align-items:center; gap:10px; margin-top:-6px; margin-bottom:8px;">
+  <span style="font-size:0.95rem;">Για μια παιδεία που βλέπει το φως σε όλα τα παιδιά</span>
+  <svg width="26" height="26" viewBox="0 0 64 64" aria-label="lotus" role="img">
+    <g fill="#B57EDC">
+      <path d="M32 8c-4 8-4 16 0 24 4-8 4-16 0-24z"/>
+      <path d="M18 14c-1 7 1 14 6 20 1-8-1-16-6-20z"/>
+      <path d="M46 14c-5 4-7 12-6 20 5-6 7-13 6-20z"/>
+      <path d="M10 28c3 6 9 10 16 12-3-6-8-11-16-12z"/>
+      <path d="M54 28c-8 1-13 6-16 12 7-2 13-6 16-12z"/>
+      <path d="M20 38c3 6 8 10 12 10s9-4 12-10c-7 2-17 2-24 0z"/>
+    </g>
+  </svg>
+</div>
+""", unsafe_allow_html=True)
 ROOT = Path(__file__).parent
 ASSETS = ROOT / "assets"
 ASSETS.mkdir(exist_ok=True)
