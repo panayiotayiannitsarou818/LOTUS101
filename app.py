@@ -13,6 +13,82 @@ import pandas as pd
 st.set_page_config(page_title="Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού", page_icon="🧩", layout="wide")
 st.title("Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού")
 
+st.markdown("""
+<div style="display:flex; align-items:center; gap:10px; margin-top:-8px; margin-bottom:8px;">
+  <span style="font-size:0.95rem;">Μια παιδεία που βλέπει το φως σε όλα τα παιδιά</span>
+  <svg width="26" height="26" viewBox="0 0 64 64" aria-label="lotus" role="img">
+    <g fill="#B57EDC">
+      <path d="M32 8c-4 8-4 16 0 24 4-8 4-16 0-24z"/>
+      <path d="M18 14c-1 7 1 14 6 20 1-8-1-16-6-20z"/>
+      <path d="M46 14c-5 4-7 12-6 20 5-6 7-13 6-20z"/>
+      <path d="M10 28c3 6 9 10 16 12-3-6-8-11-16-12z"/>
+      <path d="M54 28c-8 1-13 6-16 12 7-2 13-6 16-12z"/>
+      <path d="M20 38c3 6 8 10 12 10s9-4 12-10c-7 2-17 2-24 0z"/>
+    </g>
+  </svg>
+</div>
+""", unsafe_allow_html=True)
+ROOT = Path(__file__).parent
+ASSETS = ROOT / "assets"
+ASSETS.mkdir(exist_ok=True)
+PERSIST_LOGO_PATH = ASSETS / "persisted_logo.bin"
+PERSIST_LOGO_META = ASSETS / "persisted_logo.meta.json"
+
+# ---------------------------
+# Βοηθητικά
+# ---------------------------
+def _load_module(name: str, file_path: Path):
+    spec = importlib.util.spec_from_file_location(name, str(file_path))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    return mod
+
+def _read_file_bytes(path: Path) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()
+
+def _timestamped(base: str, ext: str) -> str:
+    ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+    import re as _re
+    safe = _re.sub(r"[^A-Za-z0-9_\-\.]+", "_", base)
+    return f"{safe}_{ts}{ext}"
+
+def _check_required_files(paths):
+    missing = [str(p) for p in paths if not p.exists()]
+    return missing
+
+def _inject_logo(logo_bytes: bytes, width_px: int = 140, mime: str = "image/png"):
+    b64 = base64.b64encode(logo_bytes).decode("ascii")
+    html = f"""
+    <div style="position: fixed; bottom: 38px; right: 38px; z-index: 1000;">
+        <img src="data:{mime};base64,{b64}" style="width:{width_px}px; height:auto; opacity:0.95; border-radius:12px;" />
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+def _restart_app():
+    # Καθάρισε session_state κλειδιά
+    for k in list(st.session_state.keys()):
+        if k.startswith("uploader_") or k in ("auth_ok","accepted_terms","app_enabled","last_final_path"):
+            try:
+                del st.session_state[k]
+            except Exception:
+                pass
+    # Καθάρισε caches
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+    try:
+        st.cache_resource.clear()
+    except Exception:
+        pass
+    # ΔΙΑΓΡΑΦΗ παραγόμενων αρχείων για πλήρη καθαρισμό
+    try:
+        for pat in ("STEP7_FINAL_SCENARIO*.xlsx", "STEP1_6_PER_SCENARIO*.xlsx", "INPUT_STEP1*.xlsx"):
+            for f in ROOT.glob(pat):
+                try:
+                    f.unlink()
                 except Exception:
                     pass
     except Exception:
@@ -62,7 +138,85 @@ with st.sidebar:
             st.error("Λανθασμένος κωδικός.")
 
     with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=True):
-        with colC:
+        st.markdown(_terms_md())
+    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))
+
+    st.session_state.app_enabled = st.toggle("⏯️ Ενεργοποίηση κύριας εφαρμογής", value=st.session_state.get("app_enabled", True))
+
+    st.divider()
+    st.subheader("🖼️ Λογότυπο")
+    # Auto-load persisted
+    if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
+        try:
+            meta = json.loads(PERSIST_LOGO_META.read_text(encoding="utf-8"))
+            mime = meta.get("mime", "image/png")
+            _inject_logo(_read_file_bytes(PERSIST_LOGO_PATH), width_px=140, mime=mime)
+            st.caption("Φορτώθηκε **αυτόματα** το αποθηκευμένο λογότυπο (κάτω δεξιά).")
+        except Exception:
+            st.warning("Το αποθηκευμένο λογότυπο δεν μπόρεσε να φορτωθεί.")
+    # Upload & persist
+    logo_file = st.file_uploader("PNG/JPG/SVG λογότυπο (προαιρετικό)", type=["png","jpg","jpeg","svg"], key="logo_upl")
+    if logo_file is not None:
+        try:
+            mime = getattr(logo_file, "type", "image/png") or "image/png"
+            data = logo_file.read()
+            _inject_logo(data, width_px=140, mime=mime)
+            PERSIST_LOGO_PATH.write_bytes(data)
+            PERSIST_LOGO_META.write_text(json.dumps({"mime": mime, "saved_at": dt.datetime.now().isoformat()}), encoding="utf-8")
+            st.success("Το λογότυπο **αποθηκεύτηκε μόνιμα** και θα φορτώνεται αυτόματα.")
+        except Exception as e:
+            st.warning(f"Ανεβάστηκε, αλλά δεν αποθηκεύτηκε μόνιμα: {e}")
+    colL, colR = st.columns([1,1])
+    with colL:
+        if st.button("🧹 Καθαρισμός αποθηκευμένου λογότυπου", use_container_width=True):
+            try:
+                if PERSIST_LOGO_PATH.exists(): PERSIST_LOGO_PATH.unlink()
+                if PERSIST_LOGO_META.exists(): PERSIST_LOGO_META.unlink()
+                st.success("Διαγράφηκε το αποθηκευμένο λογότυπο.")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"Αποτυχία καθαρισμού: {e}")
+    with colR:
+        st.caption("Το αποθηκευμένο λογότυπο φορτώνεται πάντα αυτόματα.")
+
+# ---------------------------
+# Πύλες προστασίας
+# ---------------------------
+if not st.session_state.auth_ok:
+    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση (katanomi2025).")
+    st.stop()
+
+if not st.session_state.accepted_terms:
+    st.warning("✅ Για να συνεχίσετε, αποδεχθείτε τους Όρους Χρήσης (αριστερά).")
+    st.stop()
+
+if not st.session_state.app_enabled:
+    st.info("⏸️ Η εφαρμογή είναι απενεργοποιημένη. Ενεργοποιήστε την από τα αριστερά.")
+    st.stop()
+
+# ---------------------------
+# Έλεγχος modules
+# ---------------------------
+st.subheader("📦 Έλεγχος αρχείων")
+missing = _check_required_files(REQUIRED)
+if missing:
+    st.error("❌ Λείπουν αρχεία:\n" + "\n".join(f"- {m}" for m in missing))
+else:
+    st.success("✅ Όλα τα απαραίτητα αρχεία βρέθηκαν.")
+
+st.divider()
+
+# ---------------------------
+# 🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)
+# ---------------------------
+st.header("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ")
+up_all = st.file_uploader("Ανέβασε αρχικό Excel (για 1→7)", type=["xlsx"], key="uploader_all")
+colA, colB, colC = st.columns([1,1,1])
+with colA:
+    pick_step4_all = st.selectbox("Κανόνας επιλογής στο Βήμα 4", ["best", "first", "strict"], index=0, key="pick_all")
+with colB:
+    final_name_all = st.text_input("Όνομα αρχείου Τελικού Αποτελέσματος", value=_timestamped("STEP7_FINAL_SCENARIO", ".xlsx"))
+with colC:
     if up_all is not None:
         try:
             df_preview = pd.read_excel(up_all, sheet_name=0)
@@ -148,6 +302,8 @@ def _find_latest_final_path() -> Path | None:
     return None
 
 st.header("📊 Στατιστικά τμημάτων")
+st.markdown("**Απαιτεί:** `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` → αυτή χρησιμοποιείται ως `ΤΜΗΜΑ`.")
+
 final_path = _find_latest_final_path()
 if not final_path:
     st.warning("Δεν βρέθηκε αρχείο Βήματος 7. Πρώτα τρέξε «ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ».")
