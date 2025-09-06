@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
-# Wrapper version: 2025-09-06-security-2
-import re, io, os, importlib.util, datetime as dt, math, base64
+# Wrapper version: 2025-09-06-security-8.4-PERSISTENT-LOGO-FINAL
+import re, os, json, importlib.util, datetime as dt, math, base64, unicodedata
 from pathlib import Path
 
 import streamlit as st
 import pandas as pd
+from io import BytesIO
 
 st.set_page_config(page_title="🧩 School Split — Thin Wrapper", page_icon="🧩", layout="wide")
 st.title("🧩 School Split — Thin Wrapper")
 st.caption("Λεπτός wrapper εκτέλεσης — Καμία αλλαγή στη λογική των modules.")
-st.info("Έκδοση wrapper: 2025-09-06-security-2")
+st.info("Έκδοση wrapper: 2025-09-06-security-8.4-PERSISTENT-LOGO-FINAL")
 
 ROOT = Path(__file__).parent
+ASSETS = ROOT / "assets"
+ASSETS.mkdir(exist_ok=True)
+PERSIST_LOGO_PATH = ASSETS / "persisted_logo.bin"
+PERSIST_LOGO_META = ASSETS / "persisted_logo.meta.json"
 
 def _load_module(name: str, file_path: Path):
     spec = importlib.util.spec_from_file_location(name, str(file_path))
@@ -35,7 +40,7 @@ def _check_required_files(paths):
 
 def _restart_app():
     for k in list(st.session_state.keys()):
-        if k.startswith("uploader_") or k in ("last_step6_path","auth_ok","accepted_terms","app_enabled"):
+        if k.startswith("uploader_") or k in ("auth_ok","accepted_terms","app_enabled","last_final_path"):
             try:
                 del st.session_state[k]
             except Exception:
@@ -50,11 +55,11 @@ def _restart_app():
         pass
     st.rerun()
 
-def _inject_logo(logo_bytes: bytes, width_px: int = 140):
+def _inject_logo(logo_bytes: bytes, width_px: int = 140, mime: str = "image/png"):
     b64 = base64.b64encode(logo_bytes).decode("ascii")
     html = f"""
     <div style="position: fixed; bottom: 38px; right: 38px; z-index: 1000;">
-        <img src="data:image/png;base64,{b64}" style="width:{width_px}px; height:auto; opacity:0.95; border-radius:12px;" />
+        <img src="data:{mime};base64,{b64}" style="width:{width_px}px; height:auto; opacity:0.95; border-radius:12px;" />
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
@@ -109,27 +114,53 @@ with st.sidebar:
 
     st.divider()
     st.subheader("🖼️ Λογότυπο")
+
+    # --- Auto-load persisted logo on startup ---
+    if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
+        try:
+            meta = json.loads(PERSIST_LOGO_META.read_text(encoding="utf-8"))
+            mime = meta.get("mime", "image/png")
+            _inject_logo(_read_file_bytes(PERSIST_LOGO_PATH), width_px=140, mime=mime)
+            st.caption("Φορτώθηκε **αυτόματα** το αποθηκευμένο λογότυπο (κάτω δεξιά).")
+        except Exception:
+            st.warning("Το αποθηκευμένο λογότυπο δεν μπόρεσε να φορτωθεί.")
+
     logo_file = st.file_uploader("PNG/JPG/SVG λογότυπο (προαιρετικό)", type=["png","jpg","jpeg","svg"], key="logo_upl")
     if logo_file is not None:
         try:
-            _inject_logo(logo_file.read(), width_px=140)
-            st.caption("Το λογότυπο προβάλλεται κάτω δεξιά (~1cm από άκρες).")
+            mime = getattr(logo_file, "type", "image/png") or "image/png"
+            data = logo_file.read()
+            _inject_logo(data, width_px=140, mime=mime)
+            # Persist immediately
+            try:
+                PERSIST_LOGO_PATH.write_bytes(data)
+                PERSIST_LOGO_META.write_text(json.dumps({"mime": mime, "saved_at": dt.datetime.now().isoformat()}), encoding="utf-8")
+                st.success("Το λογότυπο **αποθηκεύτηκε μόνιμα** και θα φορτώνεται αυτόματα.")
+            except Exception as e:
+                st.warning(f"Ανεβάστηκε, αλλά δεν αποθηκεύτηκε μόνιμα: {e}")
         except Exception:
             st.warning("Δεν ήταν δυνατή η εμφάνιση του λογότυπου.")
 
-# εικονίδιο features
+    colL, colR = st.columns([1,1])
+    with colL:
+        if st.button("🧹 Καθαρισμός αποθηκευμένου λογότυπου", use_container_width=True):
+            try:
+                if PERSIST_LOGO_PATH.exists(): PERSIST_LOGO_PATH.unlink()
+                if PERSIST_LOGO_META.exists(): PERSIST_LOGO_META.unlink()
+                st.success("Διαγράφηκε το αποθηκευμένο λογότυπο.")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"Αποτυχία καθαρισμού: {e}")
+    with colR:
+        st.caption("Το αποθηκευμένο λογότυπο φορτώνεται πάντα αυτόματα.")
+
 with st.expander("ℹ️ Τα νέα που προστέθηκαν", expanded=True):
     st.markdown(
-        "- 🔐 Κλείδωμα πρόσβασης με κωδικό (katanomi2025)
-"
-        "- ✅ Υποχρεωτική αποδοχή Όρων Χρήσης (με νομική δήλωση)
-"
-        "- ⏯️ Toggle ενεργοποίησης/απενεργοποίησης
-"
-        "- 📊 Κουμπί 'Στατιστικά' στο αρχικό Excel
-"
-        "- 🖼️ Σταθερό λογότυπο κάτω-δεξιά (~1cm)
-"
+        "- 🔐 Κλείδωμα πρόσβασης με κωδικό (katanomi2025)\n"
+        "- ✅ Υποχρεωτική αποδοχή Όρων Χρήσης (με νομική δήλωση)\n"
+        "- ⏯️ Toggle ενεργοποίησης/απενεργοποίησης\n"
+        "- 🖼️ **Μόνιμο λογότυπο**: αποθήκευση & αυτόματο φόρτωμα σε κάθε εκκίνηση\n"
+        "- 📊 Στατιστικά: AUTO από το πιο πρόσφατο αρχείο Βήματος 7 (καμία μεταφόρτωση από τον χρήστη)\n"
     )
 
 # Πύλες
@@ -145,25 +176,19 @@ if not st.session_state.app_enabled:
     st.info("⏸️ Η εφαρμογή είναι απενεργοποιημένη. Ενεργοποιήστε την από τα αριστερά.")
     st.stop()
 
-box1, box2 = st.columns([3, 2])
-with box1:
-    st.subheader("📦 Έλεγχος αρχείων")
-    missing = _check_required_files(REQUIRED)
-    if missing:
-        st.error("❌ Λείπουν αρχεία:\n" + "\n".join(f"- {m}" for m in missing))
-    else:
-        st.success("✅ Όλα τα απαραίτητα αρχεία βρέθηκαν.")
-
-with box2:
-    st.subheader("♻️ Επανεκκίνηση")
-    if st.button("Επανεκκίνηση εφαρμογής", type="secondary", use_container_width=True):
-        _restart_app()
+# ===== Έλεγχος αρχείων =====
+st.subheader("📦 Έλεγχος αρχείων")
+missing = _check_required_files(REQUIRED)
+if missing:
+    st.error("❌ Λείπουν αρχεία:\n" + "\n".join(f"- {m }" for m in missing))
+else:
+    st.success("✅ Όλα τα απαραίτητα αρχεία βρέθηκαν.")
 
 st.divider()
 
-# -------------- ΟΛΑ (1→7) --------------
+# ===== ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ (1→7) =====
 st.header("🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)")
-st.write("Ανέβασε μόνο το **αρχικό Excel**. Ο wrapper τρέχει 1→6 και μετά 7 και δίνει **τελικό αποτέλεσμα**.")
+st.write("Ανέβασε μόνο το **αρχικό Excel**. Ο wrapper τρέχει 1→6 και μετά 7 και δίνει **τελικό αποτέλεσμα**. Το αρχείο αποθηκεύεται και χρησιμοποιείται αυτόματα από τα Στατιστικά.")
 
 up_all = st.file_uploader("Ανέβασε αρχικό Excel (για 1→7)", type=["xlsx"], key="uploader_all")
 colA, colB, colC = st.columns([1,1,1])
@@ -181,7 +206,7 @@ with colC:
         except Exception:
             st.caption("Δεν ήταν δυνατή η ανάγνωση για προεπισκόπηση.")
 
-run_all = st.button("🚀 Τρέξε ΟΛΑ (1→7)", type="primary", use_container_width=True)
+run_all = st.button("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ", type="primary", use_container_width=True)
 
 if run_all:
     if missing:
@@ -231,6 +256,8 @@ if run_all:
                                     sub = sub.rename(columns={winning_col: "ΤΜΗΜΑ"})
                                     sub.to_excel(w, index=False, sheet_name=str(lab))
 
+                            st.session_state["last_final_path"] = str(final_out.resolve())
+
                             st.success(f"✅ Ολοκληρώθηκε. Νικητής: στήλη {winning_col}")
                             st.download_button(
                                 "⬇️ Κατέβασε Τελικό Αποτέλεσμα (1→7)",
@@ -239,14 +266,217 @@ if run_all:
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 use_container_width=True
                             )
+                            st.caption("ℹ️ Το αρχείο αποθηκεύτηκε και θα χρησιμοποιηθεί **αυτόματα** από τα «📊 Στατιστικά».")
+
         except Exception as e:
             st.exception(e)
 
 st.divider()
 
-# -------------- Αναλυτικά (1→6) --------------
+def _strip_diacritics(s: str) -> str:
+    nfkd = unicodedata.normalize("NFD", s)
+    return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
+
+def _canon_name(s: str) -> str:
+    s = (str(s) if s is not None else "").strip()
+    s = s.strip("[]'\" ")
+    s = re.sub(r"\s+", " ", s)
+    s = _strip_diacritics(s).upper()
+    return s
+
+def auto_rename_columns(df: pd.DataFrame):
+    mapping = {}
+    if "ΦΙΛΟΙ" not in df.columns:
+        for c in df.columns:
+            if "ΦΙΛ" in str(c).upper():
+                mapping[c] = "ΦΙΛΟΙ"
+                break
+    if "ΣΥΓΚΡΟΥΣΗ" not in df.columns and "ΣΥΓΚΡΟΥΣΕΙΣ" in df.columns:
+        mapping["ΣΥΓΚΡΟΥΣΕΙΣ"] = "ΣΥΓΚΡΟΥΣΗ"
+    return df.rename(columns=mapping), mapping
+
+def list_broken_mutual_pairs(df: pd.DataFrame) -> pd.DataFrame:
+    fcol = next((c for c in ["ΦΙΛΟΙ","ΦΙΛΟΣ","ΦΙΛΙΑ"] if c in df.columns), None)
+    if fcol is None or "ΟΝΟΜΑ" not in df.columns or "ΤΜΗΜΑ" not in df.columns:
+        return pd.DataFrame(columns=["A","A_ΤΜΗΜΑ","B","B_ΤΜΗΜΑ"])
+    df = df.copy()
+    df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
+    name_to_original = dict(zip(df["__C"], df["ΟΝΟΜΑ"].astype(str)))
+    class_by_name = dict(zip(df["__C"], df["ΤΜΗΜΑ"].astype(str).str.strip()))
+    def parse_list(cell):
+        raw = str(cell) if cell is not None else ""
+        parts = [p.strip() for p in re.split(r"[;,/|\n]", raw) if p.strip()]
+        return [_canon_name(p) for p in parts]
+    friends = {cn: set(parse_list(df.loc[i, fcol])) for i, cn in enumerate(df["__C"])}
+    rows = []
+    for a, fa in friends.items():
+        for b in fa:
+            if b in friends and a in friends[b] and class_by_name.get(a) != class_by_name.get(b):
+                rows.append({"A": name_to_original.get(a, a), "A_ΤΜΗΜΑ": class_by_name.get(a,""),
+                             "B": name_to_original.get(b, b), "B_ΤΜΗΜΑ": class_by_name.get(b,"")})
+    return pd.DataFrame(rows).drop_duplicates()
+
+def compute_conflict_counts_and_names(df: pd.DataFrame):
+    if not {"ΟΝΟΜΑ","ΤΜΗΜΑ","ΣΥΓΚΡΟΥΣΗ"}.issubset(df.columns):
+        return pd.Series([0]*len(df), index=df.index), pd.Series([""]*len(df), index=df.index)
+    def parse_targets(cell):
+        raw = str(cell) if cell is not None else ""
+        parts = [p.strip() for p in re.split(r"[;,/|\n]", raw) if p.strip()]
+        return [_canon_name(p) for p in parts]
+    df = df.copy()
+    df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
+    cls = df["ΤΜΗΜΑ"].astype(str).str.strip()
+    index_by = {cn: i for i, cn in enumerate(df["__C"])}
+    counts = [0]*len(df); names = [""]*len(df)
+    for i, row in df.iterrows():
+        me = row["__C"]; my_class = cls.iloc[i]
+        targets = parse_targets(row.get("ΣΥΓΚΡΟΥΣΗ",""))
+        same = []
+        for t in targets:
+            j = index_by.get(t)
+            if j is not None and cls.iloc[j] == my_class and row["__C"] != t:
+                same.append(df.loc[j, "ΟΝΟΜΑ"])
+        counts[i] = len(same)
+        names[i] = ", ".join(same)
+    return pd.Series(counts, index=df.index), pd.Series(names, index=df.index)
+
+def generate_stats(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    if "ΤΜΗΜΑ" in df:
+        df["ΤΜΗΜΑ"] = df["ΤΜΗΜΑ"].astype(str).str.strip()
+    boys = df[df.get("ΦΥΛΟ","").astype(str).str.upper().eq("Α")].groupby("ΤΜΗΜΑ").size() if "ΦΥΛΟ" in df else pd.Series(dtype=int)
+    girls = df[df.get("ΦΥΛΟ","").astype(str).str.upper().eq("Κ")].groupby("ΤΜΗΜΑ").size() if "ΦΥΛΟ" in df else pd.Series(dtype=int)
+    edus = df[df.get("ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ" in df else pd.Series(dtype=int)
+    z = df[df.get("ΖΩΗΡΟΣ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΖΩΗΡΟΣ" in df else pd.Series(dtype=int)
+    id = df[df.get("ΙΔΙΑΙΤΕΡΟΤΗΤΑ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΙΔΙΑΙΤΕΡΟΤΗΤΑ" in df else pd.Series(dtype=int)
+    g = df[df.get("ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ" in df else pd.Series(dtype=int)
+    total = df.groupby("ΤΜΗΜΑ").size() if "ΤΜΗΜΑ" in df else pd.Series(dtype=int)
+
+    try:
+        c_counts, _ = compute_conflict_counts_and_names(df)
+        cls = df["ΤΜΗΜΑ"].astype(str).str.strip()
+        conf_by_class = c_counts.groupby(cls).sum().astype(int)
+    except Exception:
+        conf_by_class = pd.Series(dtype=int)
+
+    try:
+        pairs = list_broken_mutual_pairs(df)
+        if pairs.empty:
+            broken = pd.Series({tm: 0 for tm in df["ΤΜΗΜΑ"].dropna().astype(str).str.strip().unique()})
+        else:
+            counts = {}
+            for _, row in pairs.iterrows():
+                counts[row["A_ΤΜΗΜΑ"]] = counts.get(row["A_ΤΜΗΜΑ"], 0) + 1
+                counts[row["B_ΤΜΗΜΑ"]] = counts.get(row["B_ΤΜΗΜΑ"], 0) + 1
+            broken = pd.Series(counts).astype(int)
+    except Exception:
+        broken = pd.Series(dtype=int)
+
+    stats = pd.DataFrame({
+        "ΑΓΟΡΙΑ": boys,
+        "ΚΟΡΙΤΣΙΑ": girls,
+        "ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ": edus,
+        "ΖΩΗΡΟΙ": z,
+        "ΙΔΙΑΙΤΕΡΟΤΗΤΑ": id,
+        "ΓΝΩΣΗ ΕΛΛΗΝΙΚΩΝ": g,
+        "ΣΥΓΚΡΟΥΣΗ": conf_by_class,
+        "ΣΠΑΣΜΕΝΗ ΦΙΛΙΑ": broken,
+        "ΣΥΝΟΛΟ ΜΑΘΗΤΩΝ": total,
+    }).fillna(0).astype(int)
+
+    try:
+        stats = stats.sort_index(key=lambda x: x.str.extract(r"(\d+)")[0].astype(float))
+    except Exception:
+        stats = stats.sort_index()
+    return stats
+
+def export_stats_to_excel(stats_df: pd.DataFrame) -> BytesIO:
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        stats_df.to_excel(writer, index=True, sheet_name="Στατιστικά", index_label="ΤΜΗΜΑ")
+        wb = writer.book; ws = writer.sheets["Στατιστικά"]
+        header_fmt = wb.add_format({"bold": True, "valign":"vcenter", "text_wrap": True, "border":1})
+        for col_idx, value in enumerate(["ΤΜΗΜΑ"] + list(stats_df.columns)):
+            ws.write(0, col_idx, value, header_fmt)
+        for i in range(0, len(stats_df.columns)+1):
+            ws.set_column(i, i, 18)
+    output.seek(0)
+    return output
+
+# ===== 📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7) =====
+st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
+st.write("Διαβάζει **αυτόματα** το πιο πρόσφατο αρχείο **STEP7_FINAL_SCENARIO_*.xlsx** που δημιουργήθηκε από την «ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ». Απαιτεί `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` (η οποία θεωρείται `ΤΜΗΜΑ`).")
+
+def _find_latest_final_path() -> Path | None:
+    p = st.session_state.get("last_final_path")
+    if p and Path(p).exists():
+        return Path(p)
+    candidates = list(ROOT.glob("STEP7_FINAL_SCENARIO*.xlsx"))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    return candidates[0]
+
+final_path = _find_latest_final_path()
+
+if not final_path:
+    st.warning("Δεν βρέθηκε αρχείο Βήματος 7. Πρώτα τρέξε «ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ».")
+else:
+    try:
+        xl = pd.ExcelFile(final_path)
+        sheets = xl.sheet_names
+        st.success(f"✅ Βρέθηκε: **{final_path.name}** | Sheets: {len(sheets)}")
+    except Exception as e:
+        xl = None
+        st.error(f"❌ Σφάλμα ανάγνωσης: {e}")
+
+    if xl is not None:
+        if "FINAL_SCENARIO" not in sheets:
+            st.error("❌ Δεν υπάρχει sheet **FINAL_SCΕΝΑΡΙΟ** στο αρχείο.")
+        else:
+            used_df = xl.parse("FINAL_SCENARIO")
+            scen_cols = [c for c in used_df.columns if re.match(r"^ΒΗΜΑ6_ΣΕΝΑΡΙΟ_\d+$", str(c))]
+            if len(scen_cols) != 1:
+                st.error("❌ Απαιτείται **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` στο FINAL_SCENARIO. Δεν υποστηρίζονται άλλες περιπτώσεις.")
+            else:
+                used_df["ΤΜΗΜΑ"] = used_df[scen_cols[0]].astype(str).str.strip()
+                used_df, _ = auto_rename_columns(used_df)
+                try:
+                    conf_counts, conf_names = compute_conflict_counts_and_names(used_df)
+                    used_df["ΣΥΓΚΡΟΥΣΗ"] = conf_counts.astype(int)
+                    used_df["ΣΥΓΚΡΟΥΣΗ_ΟΝΟΜΑ"] = conf_names
+                except Exception:
+                    pass
+
+                st.subheader("📋 Τελικό Dataset (FINAL_SCENARIO)")
+                st.dataframe(used_df, use_container_width=True)
+
+                stats_df = generate_stats(used_df)
+                st.subheader("📊 Πίνακας Στατιστικών (Τελικό)")
+                st.dataframe(stats_df, use_container_width=True)
+
+                from io import BytesIO
+                st.download_button(
+                    "📥 Εξαγωγή ΜΟΝΟ Στατιστικών (Excel)",
+                    data=export_stats_to_excel(stats_df).getvalue(),
+                    file_name=f"statistika_STEP7_FINAL_AUTO_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary"
+                )
+
+st.divider()
+
+# ===== ♻️ Επανεκκίνηση (μία και καλή) =====
+st.header("♻️ Επανεκκίνηση")
+st.write("Καθαρίζει προσωρινά δεδομένα και ξαναφορτώνει το app.")
+if st.button("♻️ Επανεκκίνηση τώρα", type="secondary", use_container_width=True, key="restart_btn"):
+    _restart_app()
+
+st.divider()
+
+# ===== 🔎 Αναλυτικά (1→6) — ΤΕΛΕΥΤΑΙΟ =====
 st.header("🔎 Αναλυτικά Σενάρια (Βήματα 1→6)")
-st.write("Ανέβασε το **αρχικό Excel**. Θα παραχθεί Excel με όλα τα σενάρια (ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1, …) και σύνοψη.")
+st.write("Ενότητα σπάνιας χρήσης, μόνο για έλεγχο: παράγει Excel με όλα τα σενάρια (ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1, …) και σύνοψη.")
 
 up_16 = st.file_uploader("Ανέβασε αρχικό Excel (για 1→6)", type=["xlsx"], key="uploader_16")
 col1, col2, col3 = st.columns([1,1,1])
@@ -264,7 +494,7 @@ with col3:
         except Exception:
             st.caption("Δεν ήταν δυνατή η ανάγνωση για προεπισκόπηση.")
 
-run_16 = st.button("▶️ Τρέξε Αναλυτικά (1→6)", use_container_width=True)
+run_16 = st.button("🧪 ΑΝΑΛΥΤΙΚΑ ΒΗΜΑΤΑ", type="secondary", use_container_width=True)
 
 if run_16:
     if missing:
@@ -293,70 +523,5 @@ if run_16:
             )
         except Exception as e:
             st.exception(e)
-
-st.divider()
-
-# -------------- Στατιστικά --------------
-st.header("📊 Στατιστικά (από το αρχικό Excel)")
-st.write("Χρησιμοποιεί το αρχείο που έχεις ανεβάσει σε μία από τις παραπάνω ενότητες (1→7 ή 1→6).")
-
-def _stats_from_df(df: pd.DataFrame):
-    out = {}
-    N = df.shape[0]
-    out["Σύνολο μαθητών"] = int(N)
-    out["Ελάχιστα τμήματα (≤25)"] = int(max(2, math.ceil(N/25))) if N else 0
-
-    def cnt(col, positive_vals=('Ν','Y','YES','Yes',1,True)):
-        if col not in df.columns: return None
-        ser = df[col].astype(str).str.strip()
-        return int(ser.isin([str(v) for v in positive_vals]).sum())
-
-    def by_value(col):
-        if col not in df.columns: return None
-        return df[col].fillna("—").astype(str).value_counts().to_dict()
-
-    for col in ["ΦΥΛΟ","ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ"]:
-        b = by_value(col)
-        if b is not None:
-            out[f"Κατανομή: {col}"] = b
-
-    for flag in ["ΖΩΗΡΟΣ","ΙΔΙΑΙΤΕΡΟΤΗΤΑ","ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ"]:
-        c = cnt(flag)
-        if c is not None:
-            out[f"Σύνολο {flag}=Ν"] = c
-
-    if "ΦΙΛΟΙ" in df.columns:
-        out["Συμπληρωμένες φιλικές δηλώσεις"] = int(df["ΦΙΛΟΙ"].notna().sum())
-    if "ΣΥΓΚΡΟΥΣΗ" in df.columns:
-        out["Καταχωρημένες συγκρούσεις"] = int(df["ΣΥΓΚΡΟΥΣΗ"].notna().sum())
-
-    return out
-
-if st.button("📊 Υπολόγισε Στατιστικά", use_container_width=True):
-    ref_file = up_all if up_all is not None else up_16
-    if ref_file is None:
-        st.warning("Δεν έχεις ανεβάσει ακόμη αρχικό Excel. Ανέβασέ το στο 1→7 ή 1→6.")
-    else:
-        try:
-            df_stats = pd.read_excel(ref_file, sheet_name=0)
-            stats = _stats_from_df(df_stats)
-            cols = st.columns(2)
-            for i,(k,v) in enumerate(stats.items()):
-                with cols[i%2]:
-                    if isinstance(v, dict):
-                        st.markdown(f"**{k}**")
-                        st.json(v)
-                    else:
-                        st.metric(k, v)
-        except Exception as e:
-            st.exception(e)
-
-st.divider()
-
-# -------------- Επανεκκίνηση --------------
-st.header("♻️ Επανεκκίνηση")
-st.write("Καθαρίζει προσωρινά δεδομένα και ξαναφορτώνει το app.")
-if st.button("♻️ Επανεκκίνηση τώρα", type="secondary", use_container_width=True, key="restart_btn"):
-    _restart_app()
 
 st.caption("Wrapper μόνο — τα modules φορτώνονται όπως είναι, χωρίς καμία αλλαγή στη λογική.")
