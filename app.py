@@ -12,9 +12,22 @@ import pandas as pd
 # ---------------------------
 st.set_page_config(page_title="Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού", page_icon="🧩", layout="wide")
 st.title("Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού")
-st.caption("Λεπτός wrapper εκτέλεσης — Καμία αλλαγή στη λογική των modules.")
-st.info("Έκδοση: clean-stable build (AUTO Στατιστικά, μία επανεκκίνηση, μόνιμο λογότυπο)")
 
+st.markdown("""
+<div style="display:flex; align-items:center; gap:10px; margin-top:-8px; margin-bottom:8px;">
+  <span style="font-size:0.95rem;">Μια παιδεία που βλέπει το φως σε όλα τα παιδιά</span>
+  <svg width="26" height="26" viewBox="0 0 64 64" aria-label="lotus" role="img">
+    <g fill="#B57EDC">
+      <path d="M32 8c-4 8-4 16 0 24 4-8 4-16 0-24z"/>
+      <path d="M18 14c-1 7 1 14 6 20 1-8-1-16-6-20z"/>
+      <path d="M46 14c-5 4-7 12-6 20 5-6 7-13 6-20z"/>
+      <path d="M10 28c3 6 9 10 16 12-3-6-8-11-16-12z"/>
+      <path d="M54 28c-8 1-13 6-16 12 7-2 13-6 16-12z"/>
+      <path d="M20 38c3 6 8 10 12 10s9-4 12-10c-7 2-17 2-24 0z"/>
+    </g>
+  </svg>
+</div>
+""", unsafe_allow_html=True)
 ROOT = Path(__file__).parent
 ASSETS = ROOT / "assets"
 ASSETS.mkdir(exist_ok=True)
@@ -196,9 +209,7 @@ st.divider()
 # ---------------------------
 # 🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)
 # ---------------------------
-st.header("🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)")
-st.write("Ανέβασε μόνο το **αρχικό Excel**. Ο wrapper τρέχει 1→6 και μετά 7 και δίνει **τελικό αποτέλεσμα**. Το αρχείο αποθηκεύεται και χρησιμοποιείται αυτόματα από τα Στατιστικά.")
-
+st.header("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ")
 up_all = st.file_uploader("Ανέβασε αρχικό Excel (για 1→7)", type=["xlsx"], key="uploader_all")
 colA, colB, colC = st.columns([1,1,1])
 with colA:
@@ -230,6 +241,7 @@ if st.button("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ", type="primary", use_con
             s7 = _load_module("step7_fixed_final", ROOT / "step7_fixed_final.py")
 
             step6_path = ROOT / _timestamped("STEP1_6_PER_SCENARIO", ".xlsx")
+st.session_state["last_step6_path_pending"] = str(step6_path)
             with st.spinner("Τρέχουν τα Βήματα 1→6..."):
                 m.build_step1_6_per_scenario(str(input_path), str(step6_path), pick_step4=pick_step4_all)
 
@@ -263,7 +275,7 @@ if st.button("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ", type="primary", use_con
                                     sub = sub.rename(columns={winning_col: "ΤΜΗΜΑ"})
                                     sub.to_excel(w, index=False, sheet_name=str(lab))
 
-                            st.session_state["last_final_path"] = str(final_out.resolve())
+                            st.session_state["last_final_path"] = str(final_out.resolve()); st.session_state["last_step6_path"] = st.session_state.get("last_step6_path_pending")
 
                             st.success(f"✅ Ολοκληρώθηκε. Νικητής: στήλη {winning_col}")
                             st.download_button(
@@ -289,7 +301,7 @@ def _find_latest_final_path() -> Path | None:
         return Path(p)
     return None
 
-st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
+st.header("📊 Στατιστικά τμημάτων")
 st.markdown("\n".join([
     "📊 **Στατιστικά (AUTO):** διαβάζει αυτόματα το πιο πρόσφατο `STEP7_FINAL_SCENARIO_*.xlsx` (δεν ζητά upload).",
     "**Απαιτεί:** `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` → αυτή χρησιμοποιείται ως `ΤΜΗΜΑ`.",
@@ -562,6 +574,14 @@ st.divider()
 # 🔎 Αναλυτικά Σενάρια (Βήματα 1→6) — τελευταίο
 # ---------------------------
 st.header("🔎 Αναλυτικά Σενάρια (Βήματα 1→6)")
+last_step6 = st.session_state.get("last_step6_path")
+if last_step6 and Path(last_step6).exists():
+    st.success("Θα χρησιμοποιηθεί **αυτόματα** το πιο πρόσφατο αποτέλεσμα Βήματος 6 (όλα τα σενάρια).")
+    with open(last_step6, "rb") as _f:
+        st.download_button("⬇️ Κατέβασε Excel (1→6)", data=_f.read(), file_name=Path(last_step6).name,
+                          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+    st.caption(f"Πηγή: {Path(last_step6).name}")
+    st.divider()
 st.write("Ενότητα σπάνιας χρήσης, μόνο για έλεγχο: παράγει Excel με όλα τα σενάρια (ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1, …) και σύνοψη.")
 
 up_16 = st.file_uploader("Ανέβασε αρχικό Excel (για 1→6)", type=["xlsx"], key="uploader_16")
@@ -581,6 +601,12 @@ with col3:
             st.caption("Δεν ήταν δυνατή η ανάγνωση για προεπισκόπηση.")
 
 if st.button("🧪 ΑΝΑΛΥΤΙΚΑ ΒΗΜΑΤΑ", type="secondary", use_container_width=True):
+    last_step6 = st.session_state.get("last_step6_path")
+    if last_step6 and Path(last_step6).exists():
+        with open(last_step6, "rb") as _f:
+            st.download_button("⬇️ Κατέβασε Excel (1→6)", data=_f.read(), file_name=Path(last_step6).name,
+                              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        st.stop()
     if missing:
         st.error("Δεν είναι δυνατή η εκτέλεση: λείπουν modules.")
     elif up_16 is None:
