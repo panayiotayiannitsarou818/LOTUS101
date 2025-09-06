@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Wrapper version: 2025-09-06-security-8.5-STATS-UI-TABS
+# Wrapper version: 2025-09-06-security-8.6-FEATURES-DOC-and-MATCHING
 import re, os, json, importlib.util, datetime as dt, math, base64, unicodedata
 from pathlib import Path
 
@@ -10,7 +10,7 @@ from io import BytesIO
 st.set_page_config(page_title="🧩 School Split — Thin Wrapper", page_icon="🧩", layout="wide")
 st.title("🧩 School Split — Thin Wrapper")
 st.caption("Λεπτός wrapper εκτέλεσης — Καμία αλλαγή στη λογική των modules.")
-st.info("Έκδοση wrapper: 2025-09-06-security-8.5-STATS-UI-TABS")
+st.info("Έκδοση wrapper: 2025-09-06-security-8.6-FEATURES-DOC-and-MATCHING")
 
 ROOT = Path(__file__).parent
 ASSETS = ROOT / "assets"
@@ -93,7 +93,7 @@ REQUIRED = [
 with st.sidebar:
     st.header("🔐 Πρόσβαση & Ρυθμίσεις")
 
-    st.markdown("**Απλή ενεργοποίηση/απενεργοποίηση** της κύριας εφαρμογής και κλείδωμα με κωδικό.")
+    st.markdown("**Απλή ενεργοποίηση/απενεργοποίησης** της κύριας εφαρμογής και κλείδωμα με κωδικό.")
     pwd = st.text_input("Κωδικός πρόσβασης", type="password", help="Κωδικός: katanomi2025")
     if "auth_ok" not in st.session_state:
         st.session_state.auth_ok = False
@@ -152,14 +152,26 @@ with st.sidebar:
     with colR:
         st.caption("Το αποθηκευμένο λογότυπο φορτώνεται πάντα αυτόματα.")
 
-with st.expander("ℹ️ Τα νέα που προστέθηκαν", expanded=True):
-    st.markdown(
-        "- 🔐 Κλείδωμα πρόσβασης με κωδικό (katanomi2025)\n"
-        "- ✅ Υποχρεωτική αποδοχή Όρων Χρήσης (με νομική δήλωση)\n"
-        "- ⏯️ Toggle ενεργοποίησης/απενεργοποίησης\n"
-        "- 🖼️ Μόνιμο λογότυπο\n"
-        "- 📊 Στατιστικά: UI με **tabs** και επιλογή sheet (auto-επιλογή FINAL_SCENARIO)\n"
-    )
+with st.expander("ℹ️ Εγχειρίδιο / Χαρακτηριστικά", expanded=True):
+    st.markdown("""
+**Κύρια λειτουργικότητα**  
+- 📊 *Στατιστικά ανά τμήμα:* Κατανομή φύλου (αγόρια/κορίτσια), Παιδιά εκπαιδευτικού, Ζωηρά, Ιδιαιτερότητες, Επίπεδο ελληνικών, Μετρητές συγκρούσεων & σπασμένων φιλιών.  
+- 🧩 *Ανάλυση σπασμένων αμοιβαίων φιλιών:* Εντοπισμός μαθητών που δηλώνουν αμοιβαία φιλία αλλά είναι σε διαφορετικά τμήματα, παραγωγή αναφορών (πλήρης λίστα ζευγών & μετρητές ανά μαθητή).  
+- 🧾 *Συγκρούσεις στο ίδιο τμήμα:* Εντοπισμός μαθητών με σύγκρουση με συμμαθητές του ίδιου τμήματος (μετρητές & ονόματα).  
+
+**Τεχνικά χαρακτηριστικά**  
+- *Auto-rename columns:* Έξυπνη αντιστοίχιση ελληνικών στηλών σε κανονική μορφή.  
+- *Name canonicalization:* Αφαίρεση διακριτικών, normalization ονομάτων.  
+- *Friends parsing:* Επεξεργασία λιστών φίλων (CSV, arrays, κ.λπ.).  
+- *Token-based name resolution:* Ευφυής αντιστοίχιση ονομάτων με partial matching.  
+- *Multi-sheet processing:* Ανάλυση πολλαπλών σεναρίων/τμημάτων (όπου διατίθεται).  
+- *Excel export:* Πλήρεις αναφορές με formatting.  
+
+**Συμμόρφωση**  
+- GDPR notices και όροι χρήσης — εκπαιδευτική χρήση μόνο.  
+- Προστασία προσωπικών δεδομένων.  
+- Copyright notice: © 2025 Γιαννίτσαρου Παναγιώτα.
+""")
 
 # Πύλες
 if not st.session_state.auth_ok:
@@ -283,7 +295,6 @@ def _find_latest_final_path() -> Path | None:
     return candidates[0]
 
 def _strip_diacritics(s: str) -> str:
-    import unicodedata
     nfkd = unicodedata.normalize("NFD", s)
     return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
 
@@ -293,6 +304,32 @@ def _canon_name(s: str) -> str:
     s = re.sub(r"\s+", " ", s)
     s = _strip_diacritics(s).upper()
     return s
+
+def _tokenize_name(canon: str):
+    return [t for t in re.split(r"[^A-Z0-9]+", canon) if t]
+
+def _best_name_match(target_canon: str, candidates: list[str]) -> str | None:
+    # Exact
+    if target_canon in candidates:
+        return target_canon
+    tks = set(_tokenize_name(target_canon))
+    if not tks:
+        return None
+    # Score by token overlap and prefix hits
+    best = None; best_score = 0.0
+    for c in candidates:
+        cks = set(_tokenize_name(c))
+        if not cks:
+            continue
+        inter = tks & cks
+        jacc = len(inter) / max(1, len(tks | cks))
+        prefix = any(c.startswith(tok) or target_canon.startswith(tok) for tok in inter) if inter else False
+        score = jacc + (0.2 if prefix else 0.0)
+        if score > best_score:
+            best = c; best_score = score
+    if best_score >= 0.34:  # conservative threshold
+        return best
+    return None
 
 def auto_rename_columns(df: pd.DataFrame):
     mapping = {}
@@ -306,24 +343,33 @@ def auto_rename_columns(df: pd.DataFrame):
     return df.rename(columns=mapping), mapping
 
 def compute_conflict_counts_and_names(df: pd.DataFrame):
-    if not {"ΟΝΟΜΑ","ΤΜΗΜΑ","ΣΥΓΚΡΟΥΣΗ"}.issubset(df.columns):
+    if "ΟΝΟΜΑ" not in df.columns or "ΤΜΗΜΑ" not in df.columns:
         return pd.Series([0]*len(df), index=df.index), pd.Series([""]*len(df), index=df.index)
+    # Ensure ΣΥΓΚΡΟΥΣΗ column exists
+    sc = "ΣΥΓΚΡΟΥΣΗ" if "ΣΥΓΚΡΟΥΣΗ" in df.columns else None
+    if sc is None:
+        return pd.Series([0]*len(df), index=df.index), pd.Series([""]*len(df), index=df.index)
+    df = df.copy()
+    df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
+    cls = df["ΤΜΗΜΑ"].astype(str).str.strip()
+    canon_names = list(df["__C"].astype(str).unique())
+    index_by = {cn: i for i, cn in enumerate(df["__C"])}
     def parse_targets(cell):
         raw = str(cell) if cell is not None else ""
         parts = [p.strip() for p in re.split(r"[;,/|\n]", raw) if p.strip()]
         return [_canon_name(p) for p in parts]
-    df = df.copy()
-    df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
-    cls = df["ΤΜΗΜΑ"].astype(str).str.strip()
-    index_by = {cn: i for i, cn in enumerate(df["__C"])}
     counts = [0]*len(df); names = [""]*len(df)
     for i, row in df.iterrows():
-        me = row["__C"]; my_class = cls.iloc[i]
-        targets = parse_targets(row.get("ΣΥΓΚΡΟΥΣΗ",""))
+        my_class = cls.iloc[i]
+        targets = parse_targets(row.get(sc,""))
         same = []
         for t in targets:
             j = index_by.get(t)
-            if j is not None and cls.iloc[j] == my_class and row["__C"] != t:
+            if j is None:
+                # try best-match
+                match = _best_name_match(t, canon_names)
+                j = index_by.get(match) if match else None
+            if j is not None and cls.iloc[j] == my_class and df.loc[i, "__C"] != df.loc[j, "__C"]:
                 same.append(df.loc[j, "ΟΝΟΜΑ"])
         counts[i] = len(same)
         names[i] = ", ".join(same)
@@ -337,17 +383,32 @@ def list_broken_mutual_pairs(df: pd.DataFrame) -> pd.DataFrame:
     df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
     name_to_original = dict(zip(df["__C"], df["ΟΝΟΜΑ"].astype(str)))
     class_by_name = dict(zip(df["__C"], df["ΤΜΗΜΑ"].astype(str).str.strip()))
+    canon_names = list(df["__C"].astype(str).unique())
     def parse_list(cell):
         raw = str(cell) if cell is not None else ""
         parts = [p.strip() for p in re.split(r"[;,/|\n]", raw) if p.strip()]
         return [_canon_name(p) for p in parts]
-    friends = {cn: set(parse_list(df.loc[i, fcol])) for i, cn in enumerate(df["__C"])}
+    friends_map = {}
+    for i, cn in enumerate(df["__C"]):
+        raw_targets = parse_list(df.loc[i, fcol])
+        resolved = []
+        for t in raw_targets:
+            if t in canon_names:
+                resolved.append(t)
+            else:
+                match = _best_name_match(t, canon_names)
+                if match:
+                    resolved.append(match)
+        friends_map[cn] = set(resolved)
     rows = []
-    for a, fa in friends.items():
+    for a, fa in friends_map.items():
         for b in fa:
-            if b in friends and a in friends[b] and class_by_name.get(a) != class_by_name.get(b):
-                rows.append({"A": name_to_original.get(a, a), "A_ΤΜΗΜΑ": class_by_name.get(a,""),
-                             "B": name_to_original.get(b, b), "B_ΤΜΗΜΑ": class_by_name.get(b,"")})
+            fb = friends_map.get(b, set())
+            if a in fb and class_by_name.get(a) != class_by_name.get(b):
+                rows.append({
+                    "A": name_to_original.get(a, a), "A_ΤΜΗΜΑ": class_by_name.get(a,""),
+                    "B": name_to_original.get(b, b), "B_ΤΜΗΜΑ": class_by_name.get(b,"")
+                })
     return pd.DataFrame(rows).drop_duplicates()
 
 def generate_stats(df: pd.DataFrame) -> pd.DataFrame:
@@ -358,7 +419,7 @@ def generate_stats(df: pd.DataFrame) -> pd.DataFrame:
     girls = df[df.get("ΦΥΛΟ","").astype(str).str.upper().eq("Κ")].groupby("ΤΜΗΜΑ").size() if "ΦΥΛΟ" in df else pd.Series(dtype=int)
     edus = df[df.get("ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ" in df else pd.Series(dtype=int)
     z = df[df.get("ΖΩΗΡΟΣ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΖΩΗΡΟΣ" in df else pd.Series(dtype=int)
-    id = df[df.get("ΙΔΙΑΙΤΕΡΟΤΗΤΑ","").astype str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΙΔΙΑΙΤΕΡΟΤΗΤΑ" in df else pd.Series(dtype=int)
+    id_ = df[df.get("ΙΔΙΑΙΤΕΡΟΤΗΤΑ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΙΔΙΑΙΤΕΡΟΤΗΤΑ" in df else pd.Series(dtype=int)
     g = df[df.get("ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ" in df else pd.Series(dtype=int)
     total = df.groupby("ΤΜΗΜΑ").size() if "ΤΜΗΜΑ" in df else pd.Series(dtype=int)
 
@@ -387,7 +448,7 @@ def generate_stats(df: pd.DataFrame) -> pd.DataFrame:
         "ΚΟΡΙΤΣΙΑ": girls,
         "ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ": edus,
         "ΖΩΗΡΟΙ": z,
-        "ΙΔΙΑΙΤΕΡΟΤΗΤΑ": id,
+        "ΙΔΙΑΙΤΕΡΟΤΗΤΑ": id_,
         "ΓΝΩΣΗ ΕΛΛΗΝΙΚΩΝ": g,
         "ΣΥΓΚΡΟΥΣΗ": conf_by_class,
         "ΣΠΑΣΜΕΝΗ ΦΙΛΙΑ": broken,
@@ -414,7 +475,6 @@ def export_stats_to_excel(stats_df: pd.DataFrame) -> BytesIO:
     return output
 
 def prepare_conflict_students(df: pd.DataFrame) -> pd.DataFrame:
-    # Return rows with at least one conflict target in same class
     counts, names = compute_conflict_counts_and_names(df)
     out = df.copy()
     out["ΣΥΓΚΡΟΥΣΗ_ΠΛΗΘΟΣ"] = counts.astype(int)
@@ -422,8 +482,18 @@ def prepare_conflict_students(df: pd.DataFrame) -> pd.DataFrame:
     out = out.loc[out["ΣΥΓΚΡΟΥΣΗ_ΠΛΗΘΟΣ"] > 0, ["ΟΝΟΜΑ","ΤΜΗΜΑ","ΣΥΓΚΡΟΥΣΗ_ΠΛΗΘΟΣ","ΣΥΓΚΡΟΥΣΗ_ΟΝΟΜΑ"]]
     return out.sort_values(["ΤΜΗΜΑ","ΟΝΟΜΑ"])
 
-# ===== 📊 Στατιστικά — UI tabs (like screenshot) =====
+# ===== 📊 Στατιστικά — UI tabs =====
 st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
+
+def _find_latest_final_path() -> Path | None:
+    p = st.session_state.get("last_final_path")
+    if p and Path(p).exists():
+        return Path(p)
+    candidates = list(ROOT.glob("STEP7_FINAL_SCENARIO*.xlsx"))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    return candidates[0]
 
 final_path = _find_latest_final_path()
 if not final_path:
@@ -454,7 +524,6 @@ else:
 
             with tab1:
                 st.subheader("📈 Υπολογισμός Στατιστικών για Επιλεγμένο Sheet")
-                # Επιλογή sheet — μόνο FINAL_SCENARIO διαθέσιμο (auto)
                 sheet_choice = st.selectbox("Διάλεξε sheet", ["FINAL_SCENARIO"])
 
                 with st.expander("🔎 Διάγνωση/Μετονομασίες", expanded=False):
@@ -482,7 +551,6 @@ else:
                     st.success("Δεν βρέθηκαν σπασμένες αμοιβαίες φιλίες.")
                 else:
                     st.dataframe(pairs, use_container_width=True)
-                    # Σύνοψη ανά τμήμα
                     counts = {}
                     for _, row in pairs.iterrows():
                         counts[row["A_ΤΜΗΜΑ"]] = counts.get(row["A_ΤΜΗΜΑ"], 0) + 1
