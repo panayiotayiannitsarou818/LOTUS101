@@ -7,8 +7,8 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-st.set_page_config(page_title="🧩 School Split — Thin Wrapper", page_icon="🧩", layout="wide")
-st.title("🧩 School Split — Thin Wrapper")
+st.set_page_config(page_title="ΚΑΤΑΝΟΜΗ ΜΑΘΗΤΩΝ Α ΔΗΜΟΤΙΚΟΥ", page_icon="🧩", layout="wide")
+st.title("ΚΑΤΑΝΟΜΗ ΜΑΘΗΤΩΝ Α ΔΗΜΟΤΙΚΟΥ")
 st.caption("Λεπτός wrapper εκτέλεσης — Καμία αλλαγή στη λογική των modules.")
 st.info("Έκδοση wrapper: 2025-09-06-security-8.6-FEATURES-DOC-and-MATCHING")
 
