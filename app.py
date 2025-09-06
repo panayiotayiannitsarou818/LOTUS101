@@ -129,41 +129,66 @@ REQUIRED = [
 with st.sidebar:
     st.header("🔐 Πρόσβαση & Ρυθμίσεις")
 
-    # 1) ΠΑΝΤΑ ΠΡΩΤΟ: πεδίο κωδικού
+    pwd = st.text_input("Κωδικός πρόσβασης", type="password")
     if "auth_ok" not in st.session_state:
         st.session_state.auth_ok = False
-    pwd = st.text_input("Κωδικός πρόσβασης", type="password")
     if pwd:
         st.session_state.auth_ok = (pwd.strip() == "katanomi2025")
         if not st.session_state.auth_ok:
             st.error("Λανθασμένος κωδικός.")
 
-    # 2) Έπειτα: αποδοχή όρων (ορατή χωρίς προϋπόθεση)
-    if "accepted_terms" not in st.session_state:
-        st.session_state.accepted_terms = False
-    st.session_state.accepted_terms = st.checkbox(
-        "✅ Αποδέχομαι τους Όρους Χρήσης",
-        value=st.session_state.get("accepted_terms", False)
-    )
-
-    # 3) Κάτω: expander με Όρους & Πνευματικά
-    with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=False):
+    with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=True):
         st.markdown(_terms_md())
-
+    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))
     st.divider()
-    # Λογότυπο: απενεργοποιημένο κατ' απαίτηση
+    st.subheader("🖼️ Λογότυπο")
+    # Auto-load persisted
+    if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
+        try:
+            meta = json.loads(PERSIST_LOGO_META.read_text(encoding="utf-8"))
+            mime = meta.get("mime", "image/png")
+            _inject_logo(_read_file_bytes(PERSIST_LOGO_PATH), width_px=140, mime=mime)
+            st.caption("Φορτώθηκε **αυτόματα** το αποθηκευμένο λογότυπο (κάτω δεξιά).")
+        except Exception:
+            st.warning("Το αποθηκευμένο λογότυπο δεν μπόρεσε να φορτωθεί.")
+    # Upload & persist
+    logo_file = st.file_uploader("PNG/JPG/SVG λογότυπο (προαιρετικό)", type=["png","jpg","jpeg","svg"], key="logo_upl")
+    if logo_file is not None:
+        try:
+            mime = getattr(logo_file, "type", "image/png") or "image/png"
+            data = logo_file.read()
+            _inject_logo(data, width_px=140, mime=mime)
+            PERSIST_LOGO_PATH.write_bytes(data)
+            PERSIST_LOGO_META.write_text(json.dumps({"mime": mime, "saved_at": dt.datetime.now().isoformat()}), encoding="utf-8")
+            st.success("Το λογότυπο **αποθηκεύτηκε μόνιμα** και θα φορτώνεται αυτόματα.")
+        except Exception as e:
+            st.warning(f"Ανεβάστηκε, αλλά δεν αποθηκεύτηκε μόνιμα: {e}")
+    colL, colR = st.columns([1,1])
+    with colL:
+        if st.button("🧹 Καθαρισμός αποθηκευμένου λογότυπου", use_container_width=True):
+            try:
+                if PERSIST_LOGO_PATH.exists(): PERSIST_LOGO_PATH.unlink()
+                if PERSIST_LOGO_META.exists(): PERSIST_LOGO_META.unlink()
+                st.success("Διαγράφηκε το αποθηκευμένο λογότυπο.")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"Αποτυχία καθαρισμού: {e}")
+    with colR:
+        st.caption("Το αποθηκευμένο λογότυπο φορτώνεται πάντα αυτόματα.")
 
 # ---------------------------
 # Πύλες προστασίας
 # ---------------------------
 if not st.session_state.auth_ok:
-    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση (αριστερά).")
-    st.stop()
+   password = st.text_input("Κωδικός πρόσβασης", type="password")
+
 
 if not st.session_state.accepted_terms:
     st.warning("✅ Για να συνεχίσετε, αποδεχθείτε τους Όρους Χρήσης (αριστερά).")
     st.stop()
 
+# ---------------------------
+# Έλεγχος modules
 # ---------------------------
 st.subheader("📦 Έλεγχος αρχείων")
 missing = _check_required_files(REQUIRED)
@@ -175,11 +200,9 @@ else:
 st.divider()
 
 # ---------------------------
-# 🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)
+# Εκτέλεση κατανομής
 # ---------------------------
-st.header("🚀 Εκτέλεση ΟΛΑ (Βήματα 1→7)")
-st.write("Ανέβασε μόνο το **αρχικό Excel**. Ο wrapper τρέχει 1→6 και μετά 7 και δίνει **τελικό αποτέλεσμα**. Το αρχείο αποθηκεύεται και χρησιμοποιείται αυτόματα από τα Στατιστικά.")
-
+st.header("Εκτέλεση κατανομής")
 up_all = st.file_uploader("Ανέβασε αρχικό Excel (για 1→7)", type=["xlsx"], key="uploader_all")
 colA, colB, colC = st.columns([1,1,1])
 with colA:
@@ -261,7 +284,7 @@ if st.button("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ", type="primary", use_con
 st.divider()
 
 # ---------------------------
-# 📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)
+# 📊 Στατιστικά τμημάτων
 # ---------------------------
 # ΑΥΣΤΗΡΟ: ΜΟΝΟ από session_state (καμία σάρωση δίσκου)
 def _find_latest_final_path() -> Path | None:
@@ -270,7 +293,7 @@ def _find_latest_final_path() -> Path | None:
         return Path(p)
     return None
 
-st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
+st.header("📊 Στατιστικά τμημάτων")
 st.markdown("\n".join([
     "📊 **Στατιστικά (AUTO):** διαβάζει αυτόματα το πιο πρόσφατο `STEP7_FINAL_SCENARIO_*.xlsx` (δεν ζητά upload).",
     "**Απαιτεί:** `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` → αυτή χρησιμοποιείται ως `ΤΜΗΜΑ`.",
