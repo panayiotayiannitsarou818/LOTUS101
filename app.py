@@ -520,8 +520,9 @@ else:
                     required_cols = ["ΟΝΟΜΑ","ΦΥΛΟ","ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ","ΖΩΗΡΟΣ","ΙΔΙΑΙΤΕΡΟΤΗΤΑ","ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ","ΦΙΛΟΙ","ΣΥΓΚΡΟΥΣΗ",]
                     missing_cols = [c for c in required_cols if c not in used_df.columns]
                     st.write("Λείπουν στήλες:", missing_cols if missing_cols else "—")
-    if missing_cols:
-        st.info("Συμπλήρωσε/διόρθωσε τις στήλες που λείπουν στο Excel και ξαναφόρτωσέ το.")
+                # Εμφάνισε ενημέρωση μόνο όταν λείπουν στήλες
+                if missing_cols:
+                    st.info("Συμπλήρωσε/διόρθωσε τις στήλες που λείπουν στο Excel και ξαναφόρτωσέ το.")
                 stats_df = generate_stats(used_df)
                 st.dataframe(stats_df, use_container_width=True)
                 st.download_button(
@@ -583,6 +584,7 @@ if last_step6 and Path(last_step6).exists():
                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     st.caption(f"Πηγή: {Path(last_step6).name}")
     st.divider()
+    st.stop()
 st.write("Ενότητα σπάνιας χρήσης, μόνο για έλεγχο: παράγει Excel με όλα τα σενάρια (ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1, …) και σύνοψη.")
 
 up_16 = st.file_uploader("Ανέβασε αρχικό Excel (για 1→6)", type=["xlsx"], key="uploader_16")
