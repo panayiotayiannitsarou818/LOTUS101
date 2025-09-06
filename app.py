@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Wrapper version: 2025-09-06-security-8.4-PERSISTENT-LOGO-FINAL
+# Wrapper version: 2025-09-06-security-8.5-STATS-UI-TABS
 import re, os, json, importlib.util, datetime as dt, math, base64, unicodedata
 from pathlib import Path
 
@@ -10,7 +10,7 @@ from io import BytesIO
 st.set_page_config(page_title="🧩 School Split — Thin Wrapper", page_icon="🧩", layout="wide")
 st.title("🧩 School Split — Thin Wrapper")
 st.caption("Λεπτός wrapper εκτέλεσης — Καμία αλλαγή στη λογική των modules.")
-st.info("Έκδοση wrapper: 2025-09-06-security-8.4-PERSISTENT-LOGO-FINAL")
+st.info("Έκδοση wrapper: 2025-09-06-security-8.5-STATS-UI-TABS")
 
 ROOT = Path(__file__).parent
 ASSETS = ROOT / "assets"
@@ -115,7 +115,6 @@ with st.sidebar:
     st.divider()
     st.subheader("🖼️ Λογότυπο")
 
-    # --- Auto-load persisted logo on startup ---
     if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
         try:
             meta = json.loads(PERSIST_LOGO_META.read_text(encoding="utf-8"))
@@ -131,7 +130,6 @@ with st.sidebar:
             mime = getattr(logo_file, "type", "image/png") or "image/png"
             data = logo_file.read()
             _inject_logo(data, width_px=140, mime=mime)
-            # Persist immediately
             try:
                 PERSIST_LOGO_PATH.write_bytes(data)
                 PERSIST_LOGO_META.write_text(json.dumps({"mime": mime, "saved_at": dt.datetime.now().isoformat()}), encoding="utf-8")
@@ -159,8 +157,8 @@ with st.expander("ℹ️ Τα νέα που προστέθηκαν", expanded=Tr
         "- 🔐 Κλείδωμα πρόσβασης με κωδικό (katanomi2025)\n"
         "- ✅ Υποχρεωτική αποδοχή Όρων Χρήσης (με νομική δήλωση)\n"
         "- ⏯️ Toggle ενεργοποίησης/απενεργοποίησης\n"
-        "- 🖼️ **Μόνιμο λογότυπο**: αποθήκευση & αυτόματο φόρτωμα σε κάθε εκκίνηση\n"
-        "- 📊 Στατιστικά: AUTO από το πιο πρόσφατο αρχείο Βήματος 7 (καμία μεταφόρτωση από τον χρήστη)\n"
+        "- 🖼️ Μόνιμο λογότυπο\n"
+        "- 📊 Στατιστικά: UI με **tabs** και επιλογή sheet (auto-επιλογή FINAL_SCENARIO)\n"
     )
 
 # Πύλες
@@ -273,7 +271,19 @@ if run_all:
 
 st.divider()
 
+# ===== Helpers (stats) =====
+def _find_latest_final_path() -> Path | None:
+    p = st.session_state.get("last_final_path")
+    if p and Path(p).exists():
+        return Path(p)
+    candidates = list(ROOT.glob("STEP7_FINAL_SCENARIO*.xlsx"))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+    return candidates[0]
+
 def _strip_diacritics(s: str) -> str:
+    import unicodedata
     nfkd = unicodedata.normalize("NFD", s)
     return "".join(ch for ch in nfkd if not unicodedata.combining(ch))
 
@@ -294,27 +304,6 @@ def auto_rename_columns(df: pd.DataFrame):
     if "ΣΥΓΚΡΟΥΣΗ" not in df.columns and "ΣΥΓΚΡΟΥΣΕΙΣ" in df.columns:
         mapping["ΣΥΓΚΡΟΥΣΕΙΣ"] = "ΣΥΓΚΡΟΥΣΗ"
     return df.rename(columns=mapping), mapping
-
-def list_broken_mutual_pairs(df: pd.DataFrame) -> pd.DataFrame:
-    fcol = next((c for c in ["ΦΙΛΟΙ","ΦΙΛΟΣ","ΦΙΛΙΑ"] if c in df.columns), None)
-    if fcol is None or "ΟΝΟΜΑ" not in df.columns or "ΤΜΗΜΑ" not in df.columns:
-        return pd.DataFrame(columns=["A","A_ΤΜΗΜΑ","B","B_ΤΜΗΜΑ"])
-    df = df.copy()
-    df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
-    name_to_original = dict(zip(df["__C"], df["ΟΝΟΜΑ"].astype(str)))
-    class_by_name = dict(zip(df["__C"], df["ΤΜΗΜΑ"].astype(str).str.strip()))
-    def parse_list(cell):
-        raw = str(cell) if cell is not None else ""
-        parts = [p.strip() for p in re.split(r"[;,/|\n]", raw) if p.strip()]
-        return [_canon_name(p) for p in parts]
-    friends = {cn: set(parse_list(df.loc[i, fcol])) for i, cn in enumerate(df["__C"])}
-    rows = []
-    for a, fa in friends.items():
-        for b in fa:
-            if b in friends and a in friends[b] and class_by_name.get(a) != class_by_name.get(b):
-                rows.append({"A": name_to_original.get(a, a), "A_ΤΜΗΜΑ": class_by_name.get(a,""),
-                             "B": name_to_original.get(b, b), "B_ΤΜΗΜΑ": class_by_name.get(b,"")})
-    return pd.DataFrame(rows).drop_duplicates()
 
 def compute_conflict_counts_and_names(df: pd.DataFrame):
     if not {"ΟΝΟΜΑ","ΤΜΗΜΑ","ΣΥΓΚΡΟΥΣΗ"}.issubset(df.columns):
@@ -340,6 +329,27 @@ def compute_conflict_counts_and_names(df: pd.DataFrame):
         names[i] = ", ".join(same)
     return pd.Series(counts, index=df.index), pd.Series(names, index=df.index)
 
+def list_broken_mutual_pairs(df: pd.DataFrame) -> pd.DataFrame:
+    fcol = next((c for c in ["ΦΙΛΟΙ","ΦΙΛΟΣ","ΦΙΛΙΑ"] if c in df.columns), None)
+    if fcol is None or "ΟΝΟΜΑ" not in df.columns or "ΤΜΗΜΑ" not in df.columns:
+        return pd.DataFrame(columns=["A","A_ΤΜΗΜΑ","B","B_ΤΜΗΜΑ"])
+    df = df.copy()
+    df["__C"] = df["ΟΝΟΜΑ"].map(_canon_name)
+    name_to_original = dict(zip(df["__C"], df["ΟΝΟΜΑ"].astype(str)))
+    class_by_name = dict(zip(df["__C"], df["ΤΜΗΜΑ"].astype(str).str.strip()))
+    def parse_list(cell):
+        raw = str(cell) if cell is not None else ""
+        parts = [p.strip() for p in re.split(r"[;,/|\n]", raw) if p.strip()]
+        return [_canon_name(p) for p in parts]
+    friends = {cn: set(parse_list(df.loc[i, fcol])) for i, cn in enumerate(df["__C"])}
+    rows = []
+    for a, fa in friends.items():
+        for b in fa:
+            if b in friends and a in friends[b] and class_by_name.get(a) != class_by_name.get(b):
+                rows.append({"A": name_to_original.get(a, a), "A_ΤΜΗΜΑ": class_by_name.get(a,""),
+                             "B": name_to_original.get(b, b), "B_ΤΜΗΜΑ": class_by_name.get(b,"")})
+    return pd.DataFrame(rows).drop_duplicates()
+
 def generate_stats(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     if "ΤΜΗΜΑ" in df:
@@ -348,7 +358,7 @@ def generate_stats(df: pd.DataFrame) -> pd.DataFrame:
     girls = df[df.get("ΦΥΛΟ","").astype(str).str.upper().eq("Κ")].groupby("ΤΜΗΜΑ").size() if "ΦΥΛΟ" in df else pd.Series(dtype=int)
     edus = df[df.get("ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ" in df else pd.Series(dtype=int)
     z = df[df.get("ΖΩΗΡΟΣ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΖΩΗΡΟΣ" in df else pd.Series(dtype=int)
-    id = df[df.get("ΙΔΙΑΙΤΕΡΟΤΗΤΑ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΙΔΙΑΙΤΕΡΟΤΗΤΑ" in df else pd.Series(dtype=int)
+    id = df[df.get("ΙΔΙΑΙΤΕΡΟΤΗΤΑ","").astype str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΙΔΙΑΙΤΕΡΟΤΗΤΑ" in df else pd.Series(dtype=int)
     g = df[df.get("ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ","").astype(str).str.upper().eq("Ν")].groupby("ΤΜΗΜΑ").size() if "ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ" in df else pd.Series(dtype=int)
     total = df.groupby("ΤΜΗΜΑ").size() if "ΤΜΗΜΑ" in df else pd.Series(dtype=int)
 
@@ -403,66 +413,91 @@ def export_stats_to_excel(stats_df: pd.DataFrame) -> BytesIO:
     output.seek(0)
     return output
 
-# ===== 📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7) =====
-st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
-st.write("Διαβάζει **αυτόματα** το πιο πρόσφατο αρχείο **STEP7_FINAL_SCENARIO_*.xlsx** που δημιουργήθηκε από την «ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ». Απαιτεί `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` (η οποία θεωρείται `ΤΜΗΜΑ`).")
+def prepare_conflict_students(df: pd.DataFrame) -> pd.DataFrame:
+    # Return rows with at least one conflict target in same class
+    counts, names = compute_conflict_counts_and_names(df)
+    out = df.copy()
+    out["ΣΥΓΚΡΟΥΣΗ_ΠΛΗΘΟΣ"] = counts.astype(int)
+    out["ΣΥΓΚΡΟΥΣΗ_ΟΝΟΜΑ"] = names
+    out = out.loc[out["ΣΥΓΚΡΟΥΣΗ_ΠΛΗΘΟΣ"] > 0, ["ΟΝΟΜΑ","ΤΜΗΜΑ","ΣΥΓΚΡΟΥΣΗ_ΠΛΗΘΟΣ","ΣΥΓΚΡΟΥΣΗ_ΟΝΟΜΑ"]]
+    return out.sort_values(["ΤΜΗΜΑ","ΟΝΟΜΑ"])
 
-def _find_latest_final_path() -> Path | None:
-    p = st.session_state.get("last_final_path")
-    if p and Path(p).exists():
-        return Path(p)
-    candidates = list(ROOT.glob("STEP7_FINAL_SCENARIO*.xlsx"))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-    return candidates[0]
+# ===== 📊 Στατιστικά — UI tabs (like screenshot) =====
+st.header("📊 Στατιστικά — ΑΥΣΤΗΡΑ (AUTO από Βήμα 7)")
 
 final_path = _find_latest_final_path()
-
 if not final_path:
     st.warning("Δεν βρέθηκε αρχείο Βήματος 7. Πρώτα τρέξε «ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ».")
 else:
     try:
         xl = pd.ExcelFile(final_path)
         sheets = xl.sheet_names
-        st.success(f"✅ Βρέθηκε: **{final_path.name}** | Sheets: {len(sheets)}")
+        st.success(f"✅ Βρέθηκε: **{final_path.name}** | Sheets: {', '.join(sheets)}")
     except Exception as e:
         xl = None
         st.error(f"❌ Σφάλμα ανάγνωσης: {e}")
 
-    if xl is not None:
-        if "FINAL_SCENARIO" not in sheets:
-            st.error("❌ Δεν υπάρχει sheet **FINAL_SCΕΝΑΡΙΟ** στο αρχείο.")
+    if xl is not None and "FINAL_SCENARIO" in sheets:
+        used_df = xl.parse("FINAL_SCENARIO")
+        scen_cols = [c for c in used_df.columns if re.match(r"^ΒΗΜΑ6_ΣΕΝΑΡΙΟ_\d+$", str(c))]
+        if len(scen_cols) != 1:
+            st.error("❌ Απαιτείται **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` στο FINAL_SCENARIO.")
         else:
-            used_df = xl.parse("FINAL_SCENARIO")
-            scen_cols = [c for c in used_df.columns if re.match(r"^ΒΗΜΑ6_ΣΕΝΑΡΙΟ_\d+$", str(c))]
-            if len(scen_cols) != 1:
-                st.error("❌ Απαιτείται **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` στο FINAL_SCENARIO. Δεν υποστηρίζονται άλλες περιπτώσεις.")
-            else:
-                used_df["ΤΜΗΜΑ"] = used_df[scen_cols[0]].astype(str).str.strip()
-                used_df, _ = auto_rename_columns(used_df)
-                try:
-                    conf_counts, conf_names = compute_conflict_counts_and_names(used_df)
-                    used_df["ΣΥΓΚΡΟΥΣΗ"] = conf_counts.astype(int)
-                    used_df["ΣΥΓΚΡΟΥΣΗ_ΟΝΟΜΑ"] = conf_names
-                except Exception:
-                    pass
+            used_df["ΤΜΗΜΑ"] = used_df[scen_cols[0]].astype(str).str.strip()
+            used_df, rename_map = auto_rename_columns(used_df)
 
-                st.subheader("📋 Τελικό Dataset (FINAL_SCENARIO)")
-                st.dataframe(used_df, use_container_width=True)
+            tab1, tab2, tab3 = st.tabs([
+                "📊 Στατιστικά (1 sheet)",
+                "❌ Σπασμένες αμοιβαίες (όλα τα sheets) — Έξοδος: Πλήρες αντίγραφο + Σύνοψη",
+                "⚠️ Μαθητές με σύγκρουση στην ίδια τάξη",
+            ])
+
+            with tab1:
+                st.subheader("📈 Υπολογισμός Στατιστικών για Επιλεγμένο Sheet")
+                # Επιλογή sheet — μόνο FINAL_SCENARIO διαθέσιμο (auto)
+                sheet_choice = st.selectbox("Διάλεξε sheet", ["FINAL_SCENARIO"])
+
+                with st.expander("🔎 Διάγνωση/Μετονομασίες", expanded=False):
+                    st.write("Αυτόματες μετονομασίες:", rename_map if rename_map else "—")
+                    required_cols = ["ΟΝΟΜΑ","ΦΥΛΟ","ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ","ΖΩΗΡΟΣ","ΙΔΙΑΙΤΕΡΟΤΗΤΑ","ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ","ΦΙΛΟΙ","ΣΥΓΚΡΟΥΣΗ",]
+                    missing_cols = [c for c in required_cols if c not in used_df.columns]
+                    st.write("Λείπουν στήλες:", missing_cols if missing_cols else "—")
+                st.info("Συμπλήρωσε/διόρθωσε τις στήλες που λείπουν στο Excel και ξαναφόρτωσέ το.")
 
                 stats_df = generate_stats(used_df)
-                st.subheader("📊 Πίνακας Στατιστικών (Τελικό)")
                 st.dataframe(stats_df, use_container_width=True)
 
-                from io import BytesIO
                 st.download_button(
                     "📥 Εξαγωγή ΜΟΝΟ Στατιστικών (Excel)",
                     data=export_stats_to_excel(stats_df).getvalue(),
-                    file_name=f"statistika_STEP7_FINAL_AUTO_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    file_name=f"statistika_STEP7_FINAL_UI_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary"
                 )
+
+            with tab2:
+                st.subheader("💔 Σπασμένες αμοιβαίες φιλίες")
+                pairs = list_broken_mutual_pairs(used_df)
+                if pairs.empty:
+                    st.success("Δεν βρέθηκαν σπασμένες αμοιβαίες φιλίες.")
+                else:
+                    st.dataframe(pairs, use_container_width=True)
+                    # Σύνοψη ανά τμήμα
+                    counts = {}
+                    for _, row in pairs.iterrows():
+                        counts[row["A_ΤΜΗΜΑ"]] = counts.get(row["A_ΤΜΗΜΑ"], 0) + 1
+                        counts[row["B_ΤΜΗΜΑ"]] = counts.get(row["B_ΤΜΗΜΑ"], 0) + 1
+                    summary = pd.DataFrame.from_dict(counts, orient="index", columns=["Σπασμένες Αμοιβαίες"]).sort_index()
+                    st.write("Σύνοψη ανά τμήμα:")
+                    st.dataframe(summary, use_container_width=True)
+
+            with tab3:
+                st.subheader("⚠️ Μαθητές με σύγκρουση στην ίδια τάξη")
+                conflict_students = prepare_conflict_students(used_df)
+                if conflict_students.empty:
+                    st.success("Δεν βρέθηκαν συγκρούσεις εντός της ίδιας τάξης.")
+                else:
+                    st.dataframe(conflict_students, use_container_width=True)
 
 st.divider()
 
