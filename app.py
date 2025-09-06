@@ -181,9 +181,7 @@ with st.sidebar:
 # ---------------------------
 if not st.session_state.auth_ok:
    password = st.text_input("Κωδικός πρόσβασης", type="password")
-if password != "katanomi2025":
-    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση")
-    st.stop()
+
 
 if not st.session_state.accepted_terms:
     st.warning("✅ Για να συνεχίσετε, αποδεχθείτε τους Όρους Χρήσης (αριστερά).")
