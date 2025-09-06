@@ -241,7 +241,7 @@ if st.button("🚀 ΕΚΤΕΛΕΣΗ ΚΑΤΑΝΟΜΗΣ", type="primary", use_con
             s7 = _load_module("step7_fixed_final", ROOT / "step7_fixed_final.py")
 
             step6_path = ROOT / _timestamped("STEP1_6_PER_SCENARIO", ".xlsx")
-st.session_state["last_step6_path_pending"] = str(step6_path)
+            st.session_state["last_step6_path_pending"] = str(step6_path)
             with st.spinner("Τρέχουν τα Βήματα 1→6..."):
                 m.build_step1_6_per_scenario(str(input_path), str(step6_path), pick_step4=pick_step4_all)
 
