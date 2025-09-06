@@ -53,6 +53,17 @@ def _timestamped(base: str, ext: str) -> str:
     safe = _re.sub(r"[^A-Za-z0-9_\-\.]+", "_", base)
     return f"{safe}_{ts}{ext}"
 
+def _find_latest_step6():
+    """Εντοπίζει το πιο πρόσφατο αρχείο STEP1_6_PER_SCENARIO_*.xlsx στον φάκελο της εφαρμογής."""
+    try:
+        candidates = sorted((p for p in ROOT.glob("STEP1_6_PER_SCENARIO*.xlsx") if p.is_file()),
+                            key=lambda p: p.stat().st_mtime,
+                            reverse=True)
+        return candidates[0] if candidates else None
+    except Exception:
+        return None
+
+
 def _check_required_files(paths):
     missing = [str(p) for p in paths if not p.exists()]
     return missing
@@ -540,49 +551,46 @@ st.divider()
 # ---------------------------
 # 🔎 Αναλυτικά Σενάρια 
 # ---------------------------
+
 st.header("🔎 Αναλυτικά Σενάρια")
 
+# Φόρτωση του πιο πρόσφατου αρχείου 1→6, χωρίς ανεβάσματα
+# 1) Προτιμά την τιμή από st.session_state αν υπάρχει
+# 2) Αλλιώς βρίσκει το πιο πρόσφατο STEP1_6_PER_SCENARIO*.xlsx στον φάκελο
+latest_path = None
+if "last_step6_path" in st.session_state:
+    p = Path(st.session_state["last_step6_path"])
+    if p.exists():
+        latest_path = p
 
-up_16 = st.file_uploader("Ανέβασε αρχικό Excel (για 1→6)", type=["xlsx"], key="uploader_16")
-col1, col2, col3 = st.columns([1,1,1])
-with col1:
-    pick_step4 = st.selectbox("Κανόνας επιλογής στο Βήμα 4", ["best", "first", "strict"], index=0, key="pick_16")
-with col2:
-    out_name_16 = st.text_input("Όνομα αρχείου εξόδου (1→6)", value=_timestamped("STEP1_6_PER_SCENARIO", ".xlsx"))
-with col3:
-    if up_16 is not None:
-        try:
-            df_preview2 = pd.read_excel(up_16, sheet_name=0)
-            N2 = df_preview2.shape[0]
-            min_classes2 = max(2, math.ceil(N2/25)) if N2 else 0
-            st.metric("Μαθητές / Ελάχιστα τμήματα", f"{N2} / {min_classes2}")
-        except Exception:
-            st.caption("Δεν ήταν δυνατή η ανάγνωση για προεπισκόπηση.")
+if latest_path is None:
+    latest = _find_latest_step6()
+    if latest is not None:
+        latest_path = latest
+        st.session_state["last_step6_path"] = str(latest_path)
 
-if st.button("🧪 ΑΝΑΛΥΤΙΚΑ ΒΗΜΑΤΑ", type="secondary", use_container_width=True):
-    if missing:
-        st.error("Δεν είναι δυνατή η εκτέλεση: λείπουν modules.")
-    elif up_16 is None:
-        st.warning("Πρώτα ανέβασε ένα Excel.")
-    else:
-        try:
-            input_path = ROOT / _timestamped("INPUT_STEP1", ".xlsx")
-            with open(input_path, "wb") as f:
-                f.write(up_16.getbuffer())
+if latest_path is None:
+    st.info("Δεν βρέθηκε πρόσφατο αρχείο σεναρίων 1→6. Τρέξε πρώτα την «Εκτέλεση Κατανομής» (1→6 ή 1→7).")
+else:
+    st.success(f"Φορτώθηκε αυτόματα: **{latest_path.name}**")
+    # Προαιρετικό: κουμπί λήψης
+    st.download_button(
+        "⬇️ Κατέβασε Excel (1→6)",
+        data=_read_file_bytes(latest_path),
+        file_name=latest_path.name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
 
-            m = _load_module("export_step1_6_per_scenario", ROOT / "export_step1_6_per_scenario.py")
-            out_path = ROOT / out_name_16
-
-            with st.spinner("Τρέχουν τα Βήματα 1→6..."):
-                m.build_step1_6_per_scenario(str(input_path), str(out_path), pick_step4=pick_step4)
-
-            st.success("✅ Ολοκληρώθηκε η παραγωγή σεναρίων (1→6).")
-            st.download_button(
-                "⬇️ Κατέβασε Excel (1→6)",
-                data=_read_file_bytes(out_path),
-                file_name=out_path.name,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        except Exception as e:
-            st.exception(e)
+    try:
+        xls = pd.ExcelFile(latest_path)
+        scenario_sheets = [s for s in xls.sheet_names if s != "Σύνοψη"]
+        if not scenario_sheets:
+            st.warning("Το αρχείο δεν περιέχει φύλλα σεναρίων (εκτός από 'Σύνοψη').")
+        else:
+            st.caption(f"Βρέθηκαν {len(scenario_sheets)} σενάρια.")
+            sel = st.selectbox("Επίλεξε σενάριο για προεπισκόπηση", scenario_sheets, index=0, key="scenario_pick_view")
+            df = pd.read_excel(latest_path, sheet_name=sel)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.exception(e)
