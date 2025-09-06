@@ -129,66 +129,44 @@ REQUIRED = [
 with st.sidebar:
     st.header("🔐 Πρόσβαση & Ρυθμίσεις")
 
-    pwd = st.text_input("Κωδικός πρόσβασης", type="password")
-    if "auth_ok" not in st.session_state:
-        st.session_state.auth_ok = False
-    if pwd:
-        st.session_state.auth_ok = (pwd.strip() == "katanomi2025")
-        if not st.session_state.auth_ok:
-            st.error("Λανθασμένος κωδικός.")
-
+    # Όροι Χρήσης ΠΡΩΤΑ
     with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=True):
         st.markdown(_terms_md())
-    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))
+
+    if "accepted_terms" not in st.session_state:
+        st.session_state.accepted_terms = False
+    st.session_state.accepted_terms = st.checkbox(
+        "✅ Αποδέχομαι τους Όρους Χρήσης",
+        value=st.session_state.get("accepted_terms", False)
+    )
+
+    # Μετά εμφανίζεται ο κωδικός
+    if "auth_ok" not in st.session_state:
+        st.session_state.auth_ok = False
+
+    if st.session_state.accepted_terms:
+        pwd = st.text_input("Κωδικός πρόσβασης", type="password")
+        if pwd:
+            st.session_state.auth_ok = (pwd.strip() == "katanomi2025")
+            if not st.session_state.auth_ok:
+                st.error("Λανθασμένος κωδικός.")
+    else:
+        st.info("Αρχικά αποδεχθείτε τους Όρους Χρήσης για να εμφανιστεί το πεδίο κωδικού.")
+
     st.divider()
-    st.subheader("🖼️ Λογότυπο")
-    # Auto-load persisted
-    if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
-        try:
-            meta = json.loads(PERSIST_LOGO_META.read_text(encoding="utf-8"))
-            mime = meta.get("mime", "image/png")
-            _inject_logo(_read_file_bytes(PERSIST_LOGO_PATH), width_px=140, mime=mime)
-            st.caption("Φορτώθηκε **αυτόματα** το αποθηκευμένο λογότυπο (κάτω δεξιά).")
-        except Exception:
-            st.warning("Το αποθηκευμένο λογότυπο δεν μπόρεσε να φορτωθεί.")
-    # Upload & persist
-    logo_file = st.file_uploader("PNG/JPG/SVG λογότυπο (προαιρετικό)", type=["png","jpg","jpeg","svg"], key="logo_upl")
-    if logo_file is not None:
-        try:
-            mime = getattr(logo_file, "type", "image/png") or "image/png"
-            data = logo_file.read()
-            _inject_logo(data, width_px=140, mime=mime)
-            PERSIST_LOGO_PATH.write_bytes(data)
-            PERSIST_LOGO_META.write_text(json.dumps({"mime": mime, "saved_at": dt.datetime.now().isoformat()}), encoding="utf-8")
-            st.success("Το λογότυπο **αποθηκεύτηκε μόνιμα** και θα φορτώνεται αυτόματα.")
-        except Exception as e:
-            st.warning(f"Ανεβάστηκε, αλλά δεν αποθηκεύτηκε μόνιμα: {e}")
-    colL, colR = st.columns([1,1])
-    with colL:
-        if st.button("🧹 Καθαρισμός αποθηκευμένου λογότυπου", use_container_width=True):
-            try:
-                if PERSIST_LOGO_PATH.exists(): PERSIST_LOGO_PATH.unlink()
-                if PERSIST_LOGO_META.exists(): PERSIST_LOGO_META.unlink()
-                st.success("Διαγράφηκε το αποθηκευμένο λογότυπο.")
-                st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Αποτυχία καθαρισμού: {e}")
-    with colR:
-        st.caption("Το αποθηκευμένο λογότυπο φορτώνεται πάντα αυτόματα.")
+    # Λογότυπο: απενεργοποιημένο κατ' απαίτηση
 
 # ---------------------------
 # Πύλες προστασίας
 # ---------------------------
 if not st.session_state.auth_ok:
-   password = st.text_input("Κωδικός πρόσβασης", type="password")
-
+    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση (αριστερά).")
+    st.stop()
 
 if not st.session_state.accepted_terms:
     st.warning("✅ Για να συνεχίσετε, αποδεχθείτε τους Όρους Χρήσης (αριστερά).")
     st.stop()
 
-# ---------------------------
-# Έλεγχος modules
 # ---------------------------
 st.subheader("📦 Έλεγχος αρχείων")
 missing = _check_required_files(REQUIRED)
