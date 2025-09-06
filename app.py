@@ -271,7 +271,7 @@ def _find_latest_final_path() -> Path | None:
     return None
 
 st.header("📊 Στατιστικά τμημάτων")
-st.markdown("\n".join([
+
   
 
 final_path = _find_latest_final_path()
