@@ -129,10 +129,16 @@ REQUIRED = [
 with st.sidebar:
     st.header("🔐 Πρόσβαση & Ρυθμίσεις")
 
-    # Όροι Χρήσης ΠΡΩΤΑ
-    with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=True):
-        st.markdown(_terms_md())
+    # 1) ΠΑΝΤΑ ΠΡΩΤΟ: πεδίο κωδικού
+    if "auth_ok" not in st.session_state:
+        st.session_state.auth_ok = False
+    pwd = st.text_input("Κωδικός πρόσβασης", type="password")
+    if pwd:
+        st.session_state.auth_ok = (pwd.strip() == "katanomi2025")
+        if not st.session_state.auth_ok:
+            st.error("Λανθασμένος κωδικός.")
 
+    # 2) Έπειτα: αποδοχή όρων (ορατή χωρίς προϋπόθεση)
     if "accepted_terms" not in st.session_state:
         st.session_state.accepted_terms = False
     st.session_state.accepted_terms = st.checkbox(
@@ -140,18 +146,9 @@ with st.sidebar:
         value=st.session_state.get("accepted_terms", False)
     )
 
-    # Μετά εμφανίζεται ο κωδικός
-    if "auth_ok" not in st.session_state:
-        st.session_state.auth_ok = False
-
-    if st.session_state.accepted_terms:
-        pwd = st.text_input("Κωδικός πρόσβασης", type="password")
-        if pwd:
-            st.session_state.auth_ok = (pwd.strip() == "katanomi2025")
-            if not st.session_state.auth_ok:
-                st.error("Λανθασμένος κωδικός.")
-    else:
-        st.info("Αρχικά αποδεχθείτε τους Όρους Χρήσης για να εμφανιστεί το πεδίο κωδικού.")
+    # 3) Κάτω: expander με Όρους & Πνευματικά
+    with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=False):
+        st.markdown(_terms_md())
 
     st.divider()
     # Λογότυπο: απενεργοποιημένο κατ' απαίτηση
