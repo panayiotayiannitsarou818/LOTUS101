@@ -141,7 +141,6 @@ with st.sidebar:
         st.markdown(_terms_md())
     st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))
 
-    st.session_state.app_enabled = st.toggle("⏯️ Ενεργοποίηση κύριας εφαρμογής", value=st.session_state.get("app_enabled", True))
 
     st.divider()
     st.subheader("🖼️ Λογότυπο")
@@ -183,15 +182,11 @@ with st.sidebar:
 # Πύλες προστασίας
 # ---------------------------
 if not st.session_state.auth_ok:
-    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση")
+    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση (katanomi2025).")
     st.stop()
 
 if not st.session_state.accepted_terms:
     st.warning("✅ Για να συνεχίσετε, αποδεχθείτε τους Όρους Χρήσης (αριστερά).")
-    st.stop()
-
-if not st.session_state.app_enabled:
-    st.info("⏸️ Η εφαρμογή είναι απενεργοποιημένη. Ενεργοποιήστε την από τα αριστερά.")
     st.stop()
 
 # ---------------------------
@@ -302,7 +297,10 @@ def _find_latest_final_path() -> Path | None:
     return None
 
 st.header("📊 Στατιστικά τμημάτων")
-st.markdown("**Απαιτεί:** `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` → αυτή χρησιμοποιείται ως `ΤΜΗΜΑ`.")
+st.markdown("\n".join([
+    "📊 **Στατιστικά (AUTO):** διαβάζει αυτόματα το πιο πρόσφατο `STEP7_FINAL_SCENARIO_*.xlsx` (δεν ζητά upload).",
+    "**Απαιτεί:** `FINAL_SCENARIO` με **ακριβώς μία** στήλη `ΒΗΜΑ6_ΣΕΝΑΡΙΟ_N` → αυτή χρησιμοποιείται ως `ΤΜΗΜΑ`.",
+]))
 
 final_path = _find_latest_final_path()
 if not final_path:
@@ -517,9 +515,7 @@ else:
                     required_cols = ["ΟΝΟΜΑ","ΦΥΛΟ","ΠΑΙΔΙ_ΕΚΠΑΙΔΕΥΤΙΚΟΥ","ΖΩΗΡΟΣ","ΙΔΙΑΙΤΕΡΟΤΗΤΑ","ΚΑΛΗ_ΓΝΩΣΗ_ΕΛΛΗΝΙΚΩΝ","ΦΙΛΟΙ","ΣΥΓΚΡΟΥΣΗ",]
                     missing_cols = [c for c in required_cols if c not in used_df.columns]
                     st.write("Λείπουν στήλες:", missing_cols if missing_cols else "—")
-                # Εμφάνισε ενημέρωση μόνο όταν λείπουν στήλες
-                if missing_cols:
-                    st.info("Συμπλήρωσε/διόρθωσε τις στήλες που λείπουν στο Excel και ξαναφόρτωσέ το.")
+                st.info("Συμπλήρωσε/διόρθωσε τις στήλες που λείπουν στο Excel και ξαναφόρτωσέ το.")
                 stats_df = generate_stats(used_df)
                 st.dataframe(stats_df, use_container_width=True)
                 st.download_button(
@@ -581,7 +577,6 @@ if last_step6 and Path(last_step6).exists():
                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
     st.caption(f"Πηγή: {Path(last_step6).name}")
     st.divider()
-    st.stop()
 st.write("Ενότητα σπάνιας χρήσης, μόνο για έλεγχο: παράγει Excel με όλα τα σενάρια (ΒΗΜΑ6_ΣΕΝΑΡΙΟ_1, …) και σύνοψη.")
 
 up_16 = st.file_uploader("Ανέβασε αρχικό Excel (για 1→6)", type=["xlsx"], key="uploader_16")
