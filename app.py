@@ -116,7 +116,7 @@ REQUIRED = [
 with st.sidebar:
     st.header("🔐 Πρόσβαση & Ρυθμίσεις")
 
-    pwd = st.text_input("Κωδικός πρόσβασης", type="password")
+    pwd = st.text_input("Κωδικός πρόσβασης", type="password", help="Κωδικός: katanomi2025")
     if "auth_ok" not in st.session_state:
         st.session_state.auth_ok = False
     if pwd:
@@ -126,11 +126,7 @@ with st.sidebar:
 
     with st.expander("📄 Όροι Χρήσης & Πνευματικά Δικαιώματα", expanded=True):
         st.markdown(_terms_md())
-    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))
-
-    st.session_state.app_enabled = st.toggle("⏯️ Ενεργοποίηση κύριας εφαρμογής", value=st.session_state.get("app_enabled", True))
-
-    st.divider()
+    st.session_state.accepted_terms = st.checkbox("✅ Αποδέχομαι τους Όρους Χρήσης", value=st.session_state.get("accepted_terms", False))    st.divider()
     st.subheader("🖼️ Λογότυπο")
     # Auto-load persisted
     if PERSIST_LOGO_PATH.exists() and PERSIST_LOGO_META.exists():
@@ -170,15 +166,11 @@ with st.sidebar:
 # Πύλες προστασίας
 # ---------------------------
 if not st.session_state.auth_ok:
-    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση")
+    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση (katanomi2025).")
     st.stop()
 
 if not st.session_state.accepted_terms:
     st.warning("✅ Για να συνεχίσετε, αποδεχθείτε τους Όρους Χρήσης (αριστερά).")
-    st.stop()
-
-if not st.session_state.app_enabled:
-    st.info("⏸️ Η εφαρμογή είναι απενεργοποιημένη. Ενεργοποιήστε την από τα αριστερά.")
     st.stop()
 
 # ---------------------------
