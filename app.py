@@ -15,7 +15,7 @@ st.title("Ψηφιακή Κατανομή Μαθητών Α' Δημοτικού"
 
 st.markdown("""
 <div style="display:flex; align-items:center; gap:10px; margin-top:-8px; margin-bottom:8px;">
-  <span style="font-size:0.95rem;">"Για μια παιδεία που βλέπει το φως σε όλα τα παιδιά"</span>
+  <span style="font-size:0.95rem;">Μια παιδεία που βλέπει το φως σε όλα τα παιδιά</span>
   <svg width="26" height="26" viewBox="0 0 64 64" aria-label="lotus" role="img">
     <g fill="#B57EDC">
       <path d="M32 8c-4 8-4 16 0 24 4-8 4-16 0-24z"/>
@@ -183,7 +183,7 @@ with st.sidebar:
 # Πύλες προστασίας
 # ---------------------------
 if not st.session_state.auth_ok:
-    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση (katanomi2025).")
+    st.warning("🔐 Εισάγετε τον σωστό κωδικό για πρόσβαση")
     st.stop()
 
 if not st.session_state.accepted_terms:
